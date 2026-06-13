@@ -88,9 +88,11 @@ export async function startRoomRecording(room: string): Promise<{ egressId: stri
   } catch (err) {
     const detail = egressErrorMessage(err);
     const hint =
-      /egress|no response|unavailable|not found/i.test(detail)
-        ? ' Redeploy Railway egress (latest entrypoint) and confirm REDIS_URL on livekit-server + egress. Egress logs should show PulseAudio started and service ready.'
-        : '';
+      /egress not connected|redis required/i.test(detail)
+        ? ' LiveKit is not using Redis. Add LIVEKIT_REDIS_ADDRESS=redis.railway.internal:6379 (+ USERNAME/PASSWORD) on livekit-server, or set Root Directory to infra/livekit-railway and redeploy. Logs must NOT say "using single-node routing" only.'
+        : /egress|no response|unavailable|not found/i.test(detail)
+          ? ' Confirm egress is Active and uses the same REDIS_URL as livekit-server.'
+          : '';
     throw new Error(`${detail}${hint}`);
   }
 }
@@ -125,7 +127,8 @@ export async function getRecordingStatus(): Promise<RecordingStatus> {
       available,
       detail: available
         ? undefined
-        : detail || 'Could not reach LiveKit Egress API. Deploy egress on Railway and set REDIS_URL on livekit-server.',
+        : detail ||
+          'Could not reach LiveKit Egress API. Set REDIS_URL on livekit-server and egress, then redeploy both.',
     };
   }
 }

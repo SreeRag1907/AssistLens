@@ -1,6 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
+echo "=== AssistLens livekit-railway entrypoint ==="
+echo "LiveKit does NOT read REDIS_URL — this script writes redis: into livekit.yaml"
+echo ""
+
 # Railway TCP-only LiveKit bootstrap.
 # Signaling: Railway HTTP proxy → container PORT (default 7880).
 # Media: Railway TCP proxy → container 7882 → iptables/haproxy → LiveKit ICE TCP.
@@ -106,10 +110,20 @@ if [ -n "${REDIS_URL:-}" ]; then
     REDIS_YAML="${REDIS_YAML}
   password: ${REDIS_PASSWORD}"
   fi
+  # LiveKit also accepts native env vars (works if yaml is ignored).
+  export LIVEKIT_REDIS_ADDRESS="${REDIS_ADDRESS}"
+  if [ -n "${REDIS_USERNAME:-}" ] && [ "$REDIS_USERNAME" != "$REDIS_PASSWORD" ]; then
+    export LIVEKIT_REDIS_USERNAME="${REDIS_USERNAME}"
+  fi
+  if [ -n "$REDIS_PASSWORD" ]; then
+    export LIVEKIT_REDIS_PASSWORD="${REDIS_PASSWORD}"
+  fi
 else
-  echo "WARNING: REDIS_URL is not set — Egress recording will NOT work."
-  echo "         Add REDIS_URL (reference your Redis service) and redeploy."
-  REDIS_YAML=""
+  echo "ERROR: REDIS_URL is not set on livekit-server."
+  echo "       Recording requires Redis on BOTH livekit-server and egress."
+  echo "       In Railway: livekit-server → Variables → REDIS_URL = \${{Redis.REDIS_URL}}"
+  echo "       Then redeploy livekit-server and confirm logs show: Redis enabled: ..."
+  exit 1
 fi
 
 cat > /etc/livekit.yaml <<EOF

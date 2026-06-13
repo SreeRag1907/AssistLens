@@ -88,7 +88,10 @@ MINIO_BUCKET=recordings
 
 ## Step 3 — Update livekit-server (add Redis)
 
-1. Open **livekit-server** service → **Variables** → add:
+**Important:** `REDIS_URL` alone does nothing unless LiveKit reads it. Our Dockerfile entrypoint converts it into `livekit.yaml`. If deploy logs do **not** show `=== AssistLens livekit-railway entrypoint ===`, fix **Settings → Root Directory** to `infra/livekit-railway` and redeploy.
+
+1. Open **livekit-server** → **Settings** → confirm **Root Directory** = `infra/livekit-railway`
+2. **Variables** → add:
 
 ```env
 REDIS_URL=${{Redis.REDIS_URL}}
@@ -97,6 +100,14 @@ REDIS_URL=${{Redis.REDIS_URL}}
 Use Railway variable reference: click **Add Reference** → select your Redis service → `REDIS_URL`.
 
 Or paste the full `redis://...` URL manually.
+
+**Quick fix without redeploying Dockerfile:** add these three vars (LiveKit reads them natively):
+
+```env
+LIVEKIT_REDIS_ADDRESS=redis.railway.internal:6379
+LIVEKIT_REDIS_USERNAME=default
+LIVEKIT_REDIS_PASSWORD=<password from REDIS_URL>
+```
 
 2. Keep existing vars:
 
@@ -108,7 +119,15 @@ LIVEKIT_NODE_IP_MODE=proxy
 
 3. Confirm **TCP proxy on 7882** still exists → **Redeploy livekit-server**
 
-4. Check logs for: `Redis enabled: redis.railway.internal:6379`
+4. Check **livekit-server** deploy logs — you **must** see:
+
+```
+Redis enabled: redis.railway.internal:6379
+```
+
+If you see `ERROR: REDIS_URL is not set on livekit-server`, the variable is missing — recording will fail with `egress not connected (redis required)`.
+
+5. Open **livekit-server** deploy logs and confirm the generated config includes a `redis:` block (not empty).
 
 ---
 
@@ -190,9 +209,8 @@ Check Render logs if recording fails: `isRecordingAvailable` calls LiveKit Egres
 
 | Symptom | Fix |
 | --- | --- |
-| **`no response from servers`** on Record | Egress not registered or PulseAudio not running. Redeploy **egress** (entrypoint starts PulseAudio + sets CPU costs). Confirm **same `REDIS_URL`** on livekit-server + egress. |
-| **`failed to read PulseAudio clients`** in egress logs | Custom entrypoint skipped PulseAudio — redeploy latest `infra/railway-egress`. |
-| **`not enough cpu for some egress types`** | Warning only on 2 vCPU plans if `web_cpu_cost` still 4 — redeploy egress with lowered CPU costs, or scale egress to **4 vCPU**. |
+| **`egress not connected (redis required)`** | **livekit-server** missing `REDIS_URL`. Add `${{Redis.REDIS_URL}}` to livekit-server (not just egress) and redeploy. |
+| **`no response from servers`** on Record | Usually same as above — livekit-server cannot see egress workers without shared Redis. |
 | File upload fails | `S3_ENDPOINT` must be MinIO **public** HTTPS URL; keys must match |
 | Record button grey / unavailable | Egress not running or Redis missing on livekit-server; redeploy both |
 | Recording stuck `processing` | Check egress logs; verify `S3_EGRESS_ENDPOINT` is internal MinIO URL |
