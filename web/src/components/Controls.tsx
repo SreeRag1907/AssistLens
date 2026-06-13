@@ -102,8 +102,13 @@ export function Controls({
           {cameraEnabled ? <CameraIcon /> : <CameraOffIcon />}
         </IconButton>
 
-        {onFlipCamera && cameraEnabled && (
-          <IconButton onClick={onFlipCamera} label="Switch camera" active>
+        {onFlipCamera && (
+          <IconButton
+            onClick={onFlipCamera}
+            label="Flip camera"
+            active={cameraEnabled}
+            disabled={!cameraEnabled}
+          >
             <CameraFlipIcon />
           </IconButton>
         )}

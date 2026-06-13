@@ -89,7 +89,7 @@ export async function startRoomRecording(room: string): Promise<{ egressId: stri
     const detail = egressErrorMessage(err);
     const hint =
       /egress|no response|unavailable|not found/i.test(detail)
-        ? ' Check Railway: egress service Active, REDIS_URL on livekit-server + egress, and S3_EGRESS_ENDPOINT=http://minio.railway.internal:9000 on Render.'
+        ? ' Redeploy Railway egress (latest entrypoint) and confirm REDIS_URL on livekit-server + egress. Egress logs should show PulseAudio started and service ready.'
         : '';
     throw new Error(`${detail}${hint}`);
   }

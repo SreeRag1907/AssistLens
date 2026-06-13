@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useMobileCameraDevice } from '../lib/useMobileDevice';
+import { useCanFlipCamera } from '../lib/useMobileDevice';
 import { Button, Field, Select } from './ui';
 import { CameraFlipIcon, CameraIcon, CameraOffIcon, MicIcon, MicOffIcon } from './MediaIcons';
 
@@ -30,7 +30,7 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
   const [videoId, setVideoId] = useState('');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [permError, setPermError] = useState<string | null>(null);
-  const isMobileCamera = useMobileCameraDevice();
+  const canFlipCamera = useCanFlipCamera();
 
   const startPreview = useCallback(async (audio?: string, video?: string, facing?: 'user' | 'environment') => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -148,7 +148,7 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
             label={camOn ? 'Turn off camera' : 'Turn on camera'}
             kind="cam"
           />
-          {camOn && isMobileCamera && (
+          {camOn && canFlipCamera && (
             <MediaToggle
               active
               onClick={flipCamera}

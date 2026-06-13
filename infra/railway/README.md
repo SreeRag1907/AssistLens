@@ -190,7 +190,9 @@ Check Render logs if recording fails: `isRecordingAvailable` calls LiveKit Egres
 
 | Symptom | Fix |
 | --- | --- |
-| **`no response from servers`** on Record | Egress not registered in Redis. Redeploy **egress** after this fix (`insecure: true` + lower CPU cost). Confirm **same `REDIS_URL`** on livekit-server + egress. Check egress logs for `connecting to redis`. |
+| **`no response from servers`** on Record | Egress not registered or PulseAudio not running. Redeploy **egress** (entrypoint starts PulseAudio + sets CPU costs). Confirm **same `REDIS_URL`** on livekit-server + egress. |
+| **`failed to read PulseAudio clients`** in egress logs | Custom entrypoint skipped PulseAudio — redeploy latest `infra/railway-egress`. |
+| **`not enough cpu for some egress types`** | Warning only on 2 vCPU plans if `web_cpu_cost` still 4 — redeploy egress with lowered CPU costs, or scale egress to **4 vCPU**. |
 | File upload fails | `S3_ENDPOINT` must be MinIO **public** HTTPS URL; keys must match |
 | Record button grey / unavailable | Egress not running or Redis missing on livekit-server; redeploy both |
 | Recording stuck `processing` | Check egress logs; verify `S3_EGRESS_ENDPOINT` is internal MinIO URL |

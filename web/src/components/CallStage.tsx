@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Participant } from 'livekit-client';
 import { useRoom, statusLabel } from '../lib/useRoom';
-import { useMobileCameraDevice } from '../lib/useMobileDevice';
+import { useCanFlipCamera } from '../lib/useMobileDevice';
 import { ApiError, getMessages, listFiles, listRecordings, postMessage, uploadFile, downloadFile } from '../lib/api';
 import type { ChatFile, ChatMessage, DataPayload, Role } from '../lib/types';
 import { ParticipantView } from './ParticipantView';
@@ -51,7 +51,7 @@ export function CallStage(props: Props) {
   const [recordingSecs, setRecordingSecs] = useState(0);
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [rejoining, setRejoining] = useState(false);
-  const isMobileCamera = useMobileCameraDevice();
+  const canFlipCamera = useCanFlipCamera();
   const [leftVoluntarily, setLeftVoluntarily] = useState(false);
 
   const handleData = useCallback((payload: DataPayload) => {
@@ -398,9 +398,7 @@ export function CallStage(props: Props) {
             cameraEnabled={room.cameraEnabled}
             onToggleMic={room.toggleMic}
             onToggleCamera={room.toggleCamera}
-            onFlipCamera={
-              isMobileCamera && room.cameraEnabled ? room.flipCamera : undefined
-            }
+            onFlipCamera={canFlipCamera ? room.flipCamera : undefined}
             onLeave={leave}
             leaveLabel={role === 'agent' ? 'End' : 'Leave'}
             onToggleChat={() => setChatOpen((o) => !o)}

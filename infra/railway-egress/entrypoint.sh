@@ -3,6 +3,9 @@ set -euo pipefail
 
 # Generate egress.yaml from env and start LiveKit Egress on Railway.
 # Connects to LiveKit + Redis + MinIO over Railway private networking.
+#
+# IMPORTANT: Room composite uses Chrome + PulseAudio. The upstream image starts
+# pulse in build/egress/entrypoint.sh — we must do the same before launching egress.
 
 if [ -z "${LIVEKIT_API_KEY:-}" ] || [ -z "${LIVEKIT_API_SECRET:-}" ]; then
   if [ -n "${LIVEKIT_KEYS:-}" ]; then
@@ -57,8 +60,12 @@ fi
 INSECURE="${EGRESS_INSECURE:-true}"
 # Railway has no --cap-add SYS_ADMIN; keep Chrome sandbox off (default, set explicitly).
 CHROME_SANDBOX="${EGRESS_ENABLE_CHROME_SANDBOX:-false}"
-# Default room composite wants ~3 CPU; Railway hobby plans have 1 vCPU — lower cost so jobs are accepted.
+# Default room composite wants 4 CPU; Railway plans are smaller — lower all costs.
 ROOM_COMPOSITE_CPU="${EGRESS_ROOM_COMPOSITE_CPU:-0.5}"
+WEB_CPU="${EGRESS_WEB_CPU:-0.5}"
+PARTICIPANT_CPU="${EGRESS_PARTICIPANT_CPU:-0.5}"
+TRACK_COMPOSITE_CPU="${EGRESS_TRACK_COMPOSITE_CPU:-0.5}"
+TRACK_CPU="${EGRESS_TRACK_CPU:-0.25}"
 MAX_CPU_UTIL="${EGRESS_MAX_CPU_UTILIZATION:-0.9}"
 HEALTH_PORT="${EGRESS_HEALTH_PORT:-8081}"
 
@@ -75,6 +82,10 @@ redis:
 ${REDIS_YAML}
 cpu_cost:
   room_composite_cpu_cost: ${ROOM_COMPOSITE_CPU}
+  web_cpu_cost: ${WEB_CPU}
+  participant_cpu_cost: ${PARTICIPANT_CPU}
+  track_composite_cpu_cost: ${TRACK_COMPOSITE_CPU}
+  track_cpu_cost: ${TRACK_CPU}
   max_cpu_utilization: ${MAX_CPU_UTIL}
 s3:
   access_key: ${S3_ACCESS_KEY}
@@ -97,4 +108,12 @@ echo "  S3: ${S3_ENDPOINT}/${S3_BUCKET}"
 echo ""
 
 export EGRESS_CONFIG_FILE="${EGRESS_CONFIG}"
+
+# Delegate to the official image entrypoint (starts PulseAudio + Xvfb, then egress).
+if [ -x /entrypoint.sh ]; then
+  echo "Handing off to /entrypoint.sh (PulseAudio + Chrome stack)..."
+  exec /entrypoint.sh
+fi
+
+echo "WARNING: /entrypoint.sh missing — starting egress directly (recording may fail)"
 exec /tini -- egress
