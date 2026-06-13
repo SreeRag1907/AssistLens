@@ -1,4 +1,5 @@
 import { useTheme } from '../lib/theme';
+import { Link } from 'react-router-dom';
 
 // ── Logo — flat aperture mark, no gradients ─────────────────────────────────
 export function Logo({ size = 32, withWordmark = false }: { size?: number; withWordmark?: boolean }) {
@@ -112,20 +113,51 @@ export function Card({ className = '', children }: { className?: string; childre
 }
 
 export function AppHeader({
-  children,
+  subtitle,
+  back,
+  title,
   actions,
 }: {
-  children?: React.ReactNode;
+  subtitle?: string;
+  back?: { to: string; label: string };
+  title?: string;
   actions?: React.ReactNode;
 }) {
+  const showSubRow = back || title;
+
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-3">
-        <div className="flex items-center gap-4 min-w-0">
-          <Logo size={30} withWordmark />
-          {children}
+      <div className="mx-auto max-w-5xl px-5">
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div className="flex items-center gap-4 min-w-0">
+            <Logo size={30} withWordmark />
+            {subtitle && !showSubRow && (
+              <div className="hidden sm:block border-l border-line pl-4 min-w-0">
+                <p className="text-sm font-bold text-fg truncate">{subtitle}</p>
+              </div>
+            )}
+          </div>
+          {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
         </div>
-        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+
+        {showSubRow && (
+          <div className="flex items-center gap-3 border-t border-line/70 py-2.5 -mt-1">
+            {back && (
+              <Link
+                to={back.to}
+                className="inline-flex items-center gap-1.5 shrink-0 text-sm font-semibold text-muted transition hover:text-brand"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {back.label}
+              </Link>
+            )}
+            {title && (
+              <h1 className="min-w-0 truncate text-base font-bold tracking-tight text-fg">{title}</h1>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

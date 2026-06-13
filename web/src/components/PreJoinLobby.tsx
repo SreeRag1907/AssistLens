@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Field, Select } from './ui';
+import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon } from './MediaIcons';
 
 export interface MediaPrefs {
   micEnabled: boolean;
@@ -86,20 +87,21 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
   }
 
   return (
-    <div className="w-full max-w-lg animate-fade-in">
-      <div className="mb-6 text-center">
-        <p className="section-label">Pre-join check</p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-fg">{sessionTitle}</h1>
-        <p className="mt-1 text-sm text-muted">Test your devices before entering the call.</p>
+    <div className="w-full animate-fade-in">
+      <div className="mb-5">
+        <p className="section-label">Before you join</p>
+        <h1 className="mt-2 text-xl font-bold tracking-tight text-fg sm:text-2xl">{sessionTitle}</h1>
+        <p className="mt-1 text-sm text-muted">Check your camera and microphone, then join the call.</p>
       </div>
 
-      <div className="relative overflow-hidden rounded-xl border border-line bg-[#0c0c0e] aspect-video">
+      {/* Video preview with in-frame controls */}
+      <div className="relative overflow-hidden rounded-xl border border-line bg-[#0c0c0e] aspect-video shadow-card">
         {!camOn && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#141416] text-muted">
-            <div className="grid h-16 w-16 place-items-center rounded-full border border-line bg-surface-2 text-2xl font-semibold text-fg">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#141416]">
+            <div className="grid h-16 w-16 place-items-center rounded-full border border-white/10 bg-white/5 text-2xl font-bold text-white">
               {(name.trim() || '?').charAt(0).toUpperCase()}
             </div>
-            <p className="mt-3 text-sm">Camera off</p>
+            <p className="mt-3 text-sm text-white/50">Camera is off</p>
           </div>
         )}
         <video
@@ -109,11 +111,31 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
           muted
           className={`h-full w-full object-cover mirror ${camOn ? '' : 'opacity-0'}`}
         />
-        {!micOn && camOn && (
-          <span className="absolute left-3 top-3 rounded-md bg-black/70 px-2 py-1 text-[11px] font-medium text-white">
-            Mic off
-          </span>
-        )}
+
+        {/* Status chips */}
+        <div className="absolute left-3 top-3 z-20 flex flex-wrap gap-2">
+          {!micOn && (
+            <span className="rounded-md bg-black/60 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+              Mic off
+            </span>
+          )}
+        </div>
+
+        {/* Meet-style media controls */}
+        <div className="absolute bottom-0 left-0 right-0 z-20 flex justify-center gap-4 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
+          <MediaToggle
+            active={micOn}
+            onClick={() => setMicOn((v) => !v)}
+            label={micOn ? 'Mute microphone' : 'Unmute microphone'}
+            kind="mic"
+          />
+          <MediaToggle
+            active={camOn}
+            onClick={() => setCamOn((v) => !v)}
+            label={camOn ? 'Turn off camera' : 'Turn on camera'}
+            kind="cam"
+          />
+        </div>
       </div>
 
       {(permError || error) && (
@@ -122,22 +144,7 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
         </p>
       )}
 
-      <div className="mt-4 flex items-center justify-center gap-3">
-        <MediaToggle
-          active={micOn}
-          onClick={() => setMicOn((v) => !v)}
-          label={micOn ? 'Mute microphone' : 'Unmute microphone'}
-          icon={micOn ? 'mic' : 'mic-off'}
-        />
-        <MediaToggle
-          active={camOn}
-          onClick={() => setCamOn((v) => !v)}
-          label={camOn ? 'Turn off camera' : 'Turn on camera'}
-          icon={camOn ? 'cam' : 'cam-off'}
-        />
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block text-left">
           <span className="label">Microphone</span>
           <Select value={audioId} onChange={(e) => switchDevices(e.target.value, videoId)}>
@@ -166,7 +173,7 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
         value={name}
         onChange={(e) => onNameChange(e.target.value)}
         placeholder="Your name (optional)"
-        className="mt-4 text-center"
+        className="mt-4"
       />
 
       <Button onClick={handleJoin} disabled={busy || !!permError} className="mt-4 w-full py-3">
@@ -182,12 +189,12 @@ function MediaToggle({
   active,
   onClick,
   label,
-  icon,
+  kind,
 }: {
   active: boolean;
   onClick: () => void;
   label: string;
-  icon: 'mic' | 'mic-off' | 'cam' | 'cam-off';
+  kind: 'mic' | 'cam';
 }) {
   return (
     <button
@@ -195,31 +202,18 @@ function MediaToggle({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={`grid h-11 w-11 place-items-center rounded-lg border transition ${
+      className={`grid h-12 w-12 place-items-center rounded-full transition-all active:scale-95 ${
         active
-          ? 'border-line bg-surface text-fg hover:bg-surface-2'
-          : 'border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400'
+          ? 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-md ring-1 ring-white/20'
+          : 'bg-red-600 text-white hover:bg-red-500 shadow-lg ring-2 ring-red-400/50'
       }`}
     >
-      {icon === 'mic' && (
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-          <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V21H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-3.08A7 7 0 0 0 19 11Z" />
-        </svg>
-      )}
-      {icon === 'mic-off' && (
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-          <path d="M19 11a7 7 0 0 1-.09 1.09l2 1.52a1 1 0 0 0 1.24-1.56l-1.9-1.45A9 9 0 0 0 21 11a1 1 0 1 0-2 0ZM12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-2.82 3H9v3a3 3 0 0 0 3 3Zm-7-3a1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V21H5a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-3.08A7 7 0 0 0 5 11Z" />
-        </svg>
-      )}
-      {icon === 'cam' && (
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-          <path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4Z" />
-        </svg>
-      )}
-      {icon === 'cam-off' && (
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-          <path d="M3.27 2 2 3.27 4.73 6H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12l2.73 2.73L21 20.46 3.27 2ZM17 10.5V7a1 1 0 0 0-1-1h-2.18l2 2H17Zm3 1.5v2.18l2 2V12a1 1 0 0 0-1-1h-1Z" />
-        </svg>
+      {kind === 'mic' ? (
+        active ? <MicIcon className="h-5 w-5" /> : <MicOffIcon className="h-5 w-5" />
+      ) : active ? (
+        <CameraIcon className="h-5 w-5" />
+      ) : (
+        <CameraOffIcon className="h-5 w-5" />
       )}
     </button>
   );

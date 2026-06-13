@@ -83,6 +83,7 @@ export function AdminDashboard() {
   return (
     <div className="min-h-screen bg-bg text-fg">
       <AppHeader
+        subtitle="Operations"
         actions={
           <>
             {live.length > 0 && (
@@ -104,12 +105,7 @@ export function AdminDashboard() {
             <ThemeToggle />
           </>
         }
-      >
-        <div className="hidden sm:block border-l border-line pl-4">
-          <p className="text-sm font-bold text-fg">Operations</p>
-          <p className="text-xs text-muted">All agents & sessions</p>
-        </div>
-      </AppHeader>
+      />
 
       <PageMain className="max-w-6xl space-y-8">
         <div>

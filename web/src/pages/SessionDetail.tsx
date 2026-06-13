@@ -167,6 +167,8 @@ export function SessionDetail() {
   return (
     <div className="min-h-[100dvh] bg-bg text-fg">
       <AppHeader
+        back={{ to: '/agent', label: 'Console' }}
+        title={session?.title || 'Session detail'}
         actions={
           <>
             <ThemeToggle />
@@ -178,14 +180,7 @@ export function SessionDetail() {
             )}
           </>
         }
-      >
-        <div className="min-w-0 border-l border-line pl-4">
-          <Link to="/agent" className="text-xs font-medium text-muted transition hover:text-brand">
-            ← Console
-          </Link>
-          <h1 className="truncate text-sm font-bold leading-tight">{session?.title || 'Session detail'}</h1>
-        </div>
-      </AppHeader>
+      />
 
       <PageMain className="max-w-3xl space-y-5">
         {session && (

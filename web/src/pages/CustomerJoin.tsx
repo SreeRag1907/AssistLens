@@ -156,11 +156,13 @@ export function CustomerJoin() {
 
   if (phase === 'checking' || phase === 'joining') {
     return (
-      <Screen>
+      <Screen subtitle={sessionTitle !== 'Video support' ? sessionTitle : undefined}>
+        <div className="flex flex-col items-center justify-center py-16">
         <Spinner className="h-10 w-10" />
         <p className="mt-4 text-sm text-muted">
           {phase === 'joining' ? 'Joining your call…' : 'Opening your support session…'}
         </p>
+        </div>
       </Screen>
     );
   }
@@ -168,7 +170,7 @@ export function CustomerJoin() {
   if (phase === 'invalid') {
     return (
       <Screen>
-        <div className="w-full max-w-sm animate-scale-in rounded-xl border border-line bg-surface p-8 text-center shadow-card">
+        <div className="mx-auto w-full max-w-sm animate-scale-in rounded-xl border border-line bg-surface p-8 text-center shadow-card">
           <h1 className="text-xl font-bold text-fg">This link can't be opened</h1>
           <p className="mt-2 text-sm text-muted">{invalidReason}</p>
         </div>
@@ -179,7 +181,7 @@ export function CustomerJoin() {
   if (phase === 'ended') {
     return (
       <Screen>
-        <div className="w-full max-w-sm animate-scale-in rounded-xl border border-line bg-surface p-8 text-center shadow-card">
+        <div className="mx-auto w-full max-w-sm animate-scale-in rounded-xl border border-line bg-surface p-8 text-center shadow-card">
           <h1 className="text-xl font-bold text-fg">This call has ended</h1>
           <p className="mt-2 text-sm text-muted">The support session is closed. You can close this page.</p>
         </div>
@@ -189,8 +191,8 @@ export function CustomerJoin() {
 
   if (phase === 'left') {
     return (
-      <Screen>
-        <div className="w-full max-w-sm animate-scale-in rounded-xl border border-line bg-surface p-8 text-center shadow-card">
+      <Screen subtitle={sessionTitle}>
+        <div className="mx-auto w-full max-w-sm animate-scale-in rounded-xl border border-line bg-surface p-8 text-center shadow-card">
           <h1 className="text-xl font-bold text-fg">You've left the call</h1>
           <p className="mt-2 text-sm text-muted">You can rejoin if the session is still active.</p>
           {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
@@ -204,7 +206,7 @@ export function CustomerJoin() {
 
   if (phase === 'lobby') {
     return (
-      <Screen>
+      <Screen subtitle={sessionTitle}>
         <PreJoinLobby
           sessionTitle={sessionTitle}
           name={name}
@@ -260,16 +262,21 @@ function reasonText(reason?: string): string {
   return 'This invite link is invalid or has expired.';
 }
 
-function Screen({ children }: { children: React.ReactNode }) {
+function Screen({ children, subtitle }: { children: React.ReactNode; subtitle?: string }) {
   return (
-    <div className="relative flex min-h-[100dvh] flex-col items-center justify-center bg-bg px-4 py-10">
-      <div className="absolute left-4 top-4">
-        <Logo size={32} withWordmark />
+    <div className="min-h-[100dvh] bg-bg text-fg">
+      <header className="sticky top-0 z-10 border-b border-line bg-surface/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-lg items-center justify-between gap-3 px-4 py-3">
+          <Logo size={28} withWordmark />
+          {subtitle && (
+            <p className="hidden flex-1 truncate text-center text-xs font-medium text-muted sm:block">{subtitle}</p>
+          )}
+          <ThemeToggle />
+        </div>
+      </header>
+      <div className="mx-auto flex w-full max-w-lg flex-col px-4 py-8 sm:py-10">
+        {children}
       </div>
-      <div className="absolute right-4 top-4">
-        <ThemeToggle />
-      </div>
-      {children}
     </div>
   );
 }

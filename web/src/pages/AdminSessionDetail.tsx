@@ -187,6 +187,8 @@ export function AdminSessionDetail() {
   return (
     <div className="min-h-[100dvh] bg-bg text-fg">
       <AppHeader
+        back={{ to: '/admin', label: 'Dashboard' }}
+        title={session.title || 'Session detail'}
         actions={
           <>
             <ThemeToggle />
@@ -207,14 +209,7 @@ export function AdminSessionDetail() {
             </button>
           </>
         }
-      >
-        <div className="min-w-0 border-l border-line pl-4">
-          <Link to="/admin" className="text-xs font-medium text-muted transition hover:text-brand">
-            ← Dashboard
-          </Link>
-          <h1 className="truncate text-sm font-bold leading-tight">{session.title || 'Session detail'}</h1>
-        </div>
-      </AppHeader>
+      />
 
       <PageMain className="max-w-4xl space-y-5">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
