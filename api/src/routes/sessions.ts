@@ -5,14 +5,26 @@ import { query } from '../db.js';
 import { config } from '../config.js';
 import { signInviteToken } from '../auth.js';
 import { requireAgent } from '../guards.js';
-import { mintAccessToken, closeRoom, startRoomRecording, stopRecording } from '../livekit.js';
 import { closeAllParticipants } from '../presence.js';
+import { isRecordingAvailable, mintAccessToken, closeRoom, startRoomRecording, stopRecording } from '../livekit.js';
 import type { SessionRow, ParticipantRow, EventRow, RecordingRow } from '../types.js';
 
 const createSchema = z.object({ title: z.string().max(200).optional() });
 
 function inviteUrl(token: string): string {
   return `${config.publicWebOrigin}/join?token=${encodeURIComponent(token)}`;
+}
+
+// A fresh, scoped, expiring customer invite for a session. Tokens are not
+// persisted — we re-mint on demand so the agent can re-share at any time.
+function makeInvite(session: SessionRow): { token: string; url: string } {
+  const token = signInviteToken({
+    sid: session.id,
+    room: session.room_name,
+    role: 'customer',
+    name: 'Customer',
+  });
+  return { token, url: inviteUrl(token) };
 }
 
 export async function sessionRoutes(app: FastifyInstance): Promise<void> {
@@ -38,17 +50,30 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       agent.identity,
     ]);
 
-    const invite = signInviteToken({
-      sid: session.id,
-      room: roomName,
-      role: 'customer',
-      name: 'Customer',
-    });
-
     return reply.code(201).send({
       session,
-      invite: { token: invite, url: inviteUrl(invite) },
+      invite: makeInvite(session),
     });
+  });
+
+  // Re-mint a shareable customer invite link for an existing (active) session.
+  app.get('/api/sessions/:id/invite', async (req, reply) => {
+    const agent = await requireAgent(req, reply);
+    if (!agent) return;
+    const { id } = req.params as { id: string };
+
+    const sRes = await query<SessionRow>('SELECT * FROM sessions WHERE id = $1 AND agent_id = $2', [
+      id,
+      agent.agentId,
+    ]);
+    const session = sRes.rows[0];
+    if (!session) return reply.code(404).send({ error: 'not_found', message: 'Session not found.' });
+    if (session.status === 'ended') {
+      return reply
+        .code(410)
+        .send({ error: 'session_ended', message: 'This session has ended — its link can no longer be used.' });
+    }
+    return makeInvite(session);
   });
 
   // List the agent's sessions with computed durations + live counts.
@@ -93,6 +118,19 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       participants: participants.rows,
       events: events.rows,
       recordings: recordings.rows,
+    };
+  });
+
+  // Whether the LiveKit Egress service is running (needed for call recording).
+  app.get('/api/recording/status', async (req, reply) => {
+    const agent = await requireAgent(req, reply);
+    if (!agent) return;
+    const available = await isRecordingAvailable();
+    return {
+      available,
+      hint: available
+        ? undefined
+        : 'Start the recording stack: docker compose -f docker-compose.recording.yml up',
     };
   });
 

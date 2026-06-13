@@ -77,3 +77,13 @@ export async function startRoomRecording(room: string): Promise<{ egressId: stri
 export async function stopRecording(egressId: string): Promise<void> {
   await egressClient.stopEgress(egressId);
 }
+
+/** True when LiveKit Egress is reachable (recording stack running). */
+export async function isRecordingAvailable(): Promise<boolean> {
+  try {
+    await egressClient.listEgress();
+    return true;
+  } catch {
+    return false;
+  }
+}

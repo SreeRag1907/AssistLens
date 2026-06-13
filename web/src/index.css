@@ -2,6 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Light theme (default) */
+:root {
+  --bg: 244 246 251;
+  --surface: 255 255 255;
+  --surface-2: 247 249 252;
+  --line: 226 230 238;
+  --fg: 15 23 42;
+  --muted: 90 100 122;
+  --subtle: 140 149 168;
+  --brand: 99 91 246;
+  --brand-strong: 79 70 229;
+  --brand-fg: 255 255 255;
+  --brand-soft: 238 238 255;
+}
+
+/* Dark theme */
+.dark {
+  --bg: 8 10 17;
+  --surface: 18 21 33;
+  --surface-2: 26 30 45;
+  --line: 40 46 66;
+  --fg: 236 239 247;
+  --muted: 150 159 180;
+  --subtle: 104 113 136;
+  --brand: 130 116 252;
+  --brand-strong: 109 92 248;
+  --brand-fg: 255 255 255;
+  --brand-soft: 32 31 58;
+}
+
 html,
 body,
 #root {
@@ -10,13 +40,28 @@ body,
 
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  background: #0b1220;
-  color: #e8edf6;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* Honour iOS safe areas so controls aren't hidden behind the home bar. */
 .safe-bottom {
   padding-bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+}
+
+/* Subtle, theme-aware scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--line)) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(var(--line));
+  border-radius: 9999px;
 }

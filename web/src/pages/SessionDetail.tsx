@@ -2,15 +2,18 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   getAgentToken,
+  getInvite,
   getMessages,
   getRecordingUrl,
   getSession,
   ApiError,
 } from '../lib/api';
 import type { ChatMessage, EventRecord, ParticipantRecord, RecordingRecord, SessionSummary } from '../lib/types';
+import { btnClass, Button, Card, Logo, StatusBadge, ThemeToggle } from '../components/ui';
+import { ShareDialog } from '../components/ShareDialog';
 
 function fmt(ts: string | null): string {
-  return ts ? new Date(ts).toLocaleString() : '-';
+  return ts ? new Date(ts).toLocaleString() : '—';
 }
 function dur(a: string, b: string | null): string {
   if (!b) return 'still in session';
@@ -28,6 +31,28 @@ export function SessionDetail() {
   const [recordings, setRecordings] = useState<RecordingRecord[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [share, setShare] = useState<{ open: boolean; url: string | null; loading: boolean; error: string | null }>({
+    open: false,
+    url: null,
+    loading: false,
+    error: null,
+  });
+
+  async function openShare() {
+    if (!token) return;
+    setShare({ open: true, url: null, loading: true, error: null });
+    try {
+      const res = await getInvite(token, id);
+      setShare({ open: true, url: res.url, loading: false, error: null });
+    } catch (err) {
+      setShare({
+        open: true,
+        url: null,
+        loading: false,
+        error: err instanceof ApiError ? err.message : 'Could not generate a link.',
+      });
+    }
+  }
 
   useEffect(() => {
     if (!token) {
@@ -61,128 +86,164 @@ export function SessionDetail() {
 
   if (error) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-slate-950 text-white">
-        <p>{error}</p>
-        <Link to="/agent" className="mt-4 rounded-lg bg-brand-600 px-4 py-2">
-          Back
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-bg text-fg">
+        <p className="text-muted">{error}</p>
+        <Link to="/agent" className={btnClass('primary', 'mt-4')}>
+          Back to console
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-slate-950 text-white">
-      <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-        <div>
-          <Link to="/agent" className="text-sm text-white/50 hover:text-white">
-            ← Console
-          </Link>
-          <h1 className="text-lg font-bold">{session?.title || 'Session detail'}</h1>
+    <div className="min-h-[100dvh] bg-bg text-fg">
+      <header className="sticky top-0 z-10 border-b border-line bg-bg/80 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-5 py-3.5">
+          <div className="flex items-center gap-3">
+            <Logo size={30} />
+            <div>
+              <Link to="/agent" className="text-xs text-muted transition hover:text-fg">
+                ← Back to console
+              </Link>
+              <h1 className="text-base font-bold leading-tight">{session?.title || 'Session detail'}</h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            {session?.status === 'active' && (
+              <>
+                <Button variant="secondary" onClick={openShare}>
+                  Share
+                </Button>
+                <Link to={`/agent/call/${id}`} className={btnClass('primary')}>
+                  Rejoin
+                </Link>
+              </>
+            )}
+          </div>
         </div>
-        {session?.status === 'active' && (
-          <Link to={`/agent/call/${id}`} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold">
-            Rejoin
-          </Link>
-        )}
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-6 p-5">
-        <Card title="Participants">
+      <main className="mx-auto max-w-3xl space-y-5 px-5 py-6">
+        {session && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+            <StatusBadge status={session.status} />
+            <span>Created {fmt(session.created_at)}</span>
+            {session.ended_at && <span>· Ended {fmt(session.ended_at)}</span>}
+          </div>
+        )}
+
+        <Section title="Participants" count={participants.length}>
           {participants.length === 0 ? (
             <Empty>No participants recorded.</Empty>
           ) : (
-            <ul className="divide-y divide-white/5">
+            <ul className="divide-y divide-line">
               {participants.map((p) => (
-                <li key={p.id} className="flex items-center justify-between py-2 text-sm">
-                  <div>
-                    <span className="font-medium">{p.display_name || p.identity}</span>
-                    <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/60">
-                      {p.role}
-                    </span>
+                <li key={p.id} className="flex items-center justify-between gap-3 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-strong text-sm font-semibold text-white">
+                      {(p.display_name || p.identity).trim().charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{p.display_name || p.identity}</p>
+                      <span className="text-[11px] uppercase tracking-wide text-subtle">{p.role}</span>
+                    </div>
                   </div>
-                  <div className="text-right text-xs text-white/40">
+                  <div className="text-right text-xs text-muted">
                     <div>joined {fmt(p.joined_at)}</div>
-                    <div>{dur(p.joined_at, p.left_at)}</div>
+                    <div className="text-subtle">{dur(p.joined_at, p.left_at)}</div>
                   </div>
                 </li>
               ))}
             </ul>
           )}
-        </Card>
+        </Section>
 
-        <Card title="Recordings">
+        <Section title="Recordings" count={recordings.length}>
           {recordings.length === 0 ? (
             <Empty>No recordings for this session.</Empty>
           ) : (
-            <ul className="space-y-2">
+            <ul className="divide-y divide-line">
               {recordings.map((r) => (
-                <li key={r.id} className="flex items-center justify-between text-sm">
-                  <span className="text-white/70">{fmt(r.created_at)}</span>
+                <li key={r.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                  <span className="text-muted">{fmt(r.created_at)}</span>
                   <div className="flex items-center gap-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] ${
-                        r.status === 'ready'
-                          ? 'bg-emerald-500/20 text-emerald-300'
-                          : r.status === 'failed'
-                            ? 'bg-red-500/20 text-red-300'
-                            : 'bg-amber-500/20 text-amber-300'
-                      }`}
-                    >
-                      {r.status}
-                    </span>
+                    <StatusBadge status={r.status} />
                     {r.status === 'ready' && (
-                      <button onClick={() => download(r.id)} className="rounded-lg bg-brand-600 px-3 py-1 text-xs font-semibold">
+                      <Button onClick={() => download(r.id)} className="px-3 py-1.5 text-xs">
                         Download
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </li>
               ))}
             </ul>
           )}
-        </Card>
+        </Section>
 
-        <Card title="Chat transcript">
+        <Section title="Chat transcript" count={messages.length}>
           {messages.length === 0 ? (
             <Empty>No messages.</Empty>
           ) : (
-            <ul className="space-y-2 text-sm">
+            <ul className="space-y-2.5 text-sm">
               {messages.map((m) => (
-                <li key={m.id}>
-                  <span className="text-white/50">
-                    [{new Date(m.created_at).toLocaleTimeString()}] {m.sender_name || m.sender_role}:
-                  </span>{' '}
-                  <span className="text-white/90">{m.body}</span>
+                <li key={m.id} className="flex gap-2">
+                  <span className="shrink-0 font-mono text-xs text-subtle">
+                    {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span>
+                    <b className="text-fg">{m.sender_name || m.sender_role}:</b>{' '}
+                    <span className="text-muted">{m.body}</span>
+                  </span>
                 </li>
               ))}
             </ul>
           )}
-        </Card>
+        </Section>
 
-        <Card title="Event log">
-          <ul className="space-y-1 text-xs text-white/60">
-            {events.map((e) => (
-              <li key={e.id}>
-                <span className="text-white/40">{new Date(e.created_at).toLocaleTimeString()}</span>{' '}
-                <span className="font-medium text-white/80">{e.type}</span>
-                {e.identity && <span className="text-white/40"> · {e.identity}</span>}
-              </li>
-            ))}
-          </ul>
-        </Card>
+        <Section title="Event log" count={events.length}>
+          {events.length === 0 ? (
+            <Empty>No events.</Empty>
+          ) : (
+            <ul className="space-y-1.5 text-xs">
+              {events.map((e) => (
+                <li key={e.id} className="flex gap-2">
+                  <span className="shrink-0 font-mono text-subtle">
+                    {new Date(e.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <span className="font-medium text-fg">{e.type}</span>
+                  {e.identity && <span className="text-subtle">· {e.identity}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
       </main>
+
+      <ShareDialog
+        open={share.open}
+        url={share.url}
+        loading={share.loading}
+        error={share.error}
+        onClose={() => setShare((s) => ({ ...s, open: false }))}
+      />
     </div>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl bg-slate-900 p-5 ring-1 ring-white/10">
-      <h2 className="mb-3 font-semibold">{title}</h2>
+    <Card className="p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <h2 className="font-semibold">{title}</h2>
+        {count !== undefined && count > 0 && (
+          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">{count}</span>
+        )}
+      </div>
       {children}
-    </section>
+    </Card>
   );
 }
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm text-white/40">{children}</p>;
+  return <p className="text-sm text-subtle">{children}</p>;
 }

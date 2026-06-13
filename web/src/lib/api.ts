@@ -80,6 +80,10 @@ export function getAgentToken_(token: string, id: string) {
   return request<AgentTokenInfo>(`/sessions/${id}/agent-token`, { token });
 }
 
+export function getInvite(token: string, id: string) {
+  return request<{ token: string; url: string }>(`/sessions/${id}/invite`, { token });
+}
+
 export function endSession(token: string, id: string) {
   return request<{ ok: true }>(`/sessions/${id}/end`, { method: 'POST', token });
 }
@@ -95,6 +99,10 @@ export function stopRecording(token: string, id: string) {
 }
 export function getRecordingUrl(token: string, id: string, rid: string) {
   return request<{ url: string }>(`/sessions/${id}/recording/${rid}/url`, { token });
+}
+
+export function getRecordingStatus(token: string) {
+  return request<{ available: boolean; hint?: string }>('/recording/status', { token });
 }
 
 // ── Customer join ────────────────────────────────────────────────────────────

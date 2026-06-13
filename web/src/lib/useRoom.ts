@@ -14,7 +14,8 @@ export interface UseRoomOptions {
   url: string;
   token: string;
   onData?: (payload: DataPayload) => void;
-  onEnded?: () => void;
+  /** Room deleted or server shut down — session is over. */
+  onSessionEnded?: () => void;
 }
 
 export interface UseRoomResult {
@@ -51,7 +52,7 @@ export function statusLabel(status: CallStatus): string {
   }
 }
 
-export function useRoom({ url, token, onData, onEnded }: UseRoomOptions): UseRoomResult {
+export function useRoom({ url, token, onData, onSessionEnded }: UseRoomOptions): UseRoomResult {
   const [room, setRoom] = useState<Room | null>(null);
   const [status, setStatus] = useState<CallStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -60,9 +61,9 @@ export function useRoom({ url, token, onData, onEnded }: UseRoomOptions): UseRoo
   const [tick, setTick] = useState(0);
 
   const onDataRef = useRef(onData);
-  const onEndedRef = useRef(onEnded);
+  const onSessionEndedRef = useRef(onSessionEnded);
   onDataRef.current = onData;
-  onEndedRef.current = onEnded;
+  onSessionEndedRef.current = onSessionEnded;
 
   const bump = useCallback(() => setTick((t) => t + 1), []);
 
@@ -78,13 +79,13 @@ export function useRoom({ url, token, onData, onEnded }: UseRoomOptions): UseRoo
     };
     const onDisconnected = (reason?: DisconnectReason) => {
       setStatus('disconnected');
-      // Room deleted by the agent (or server) => the session is over.
+      // Only navigate away when the session is truly over — not on network blips
+      // or when the user intentionally leaves (handled by the Leave button).
       if (
         reason === DisconnectReason.ROOM_DELETED ||
-        reason === DisconnectReason.CLIENT_INITIATED ||
         reason === DisconnectReason.SERVER_SHUTDOWN
       ) {
-        onEndedRef.current?.();
+        onSessionEndedRef.current?.();
       }
     };
     const onData = (payload: Uint8Array, _p?: RemoteParticipant) => {
