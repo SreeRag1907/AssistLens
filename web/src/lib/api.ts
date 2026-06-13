@@ -74,6 +74,8 @@ export function getSession(token: string, id: string) {
     participants: ParticipantRecord[];
     events: EventRecord[];
     recordings: RecordingRecord[];
+    messages?: ChatMessage[];
+    files?: ChatFile[];
   }>(`/sessions/${id}`, { token });
 }
 
@@ -95,8 +97,12 @@ export function startRecording(token: string, id: string) {
     token,
   });
 }
-export function stopRecording(token: string, id: string) {
-  return request<{ ok: true }>(`/sessions/${id}/recording/stop`, { method: 'POST', token });
+export function stopRecording(token: string, id: string, recordingId?: string) {
+  return request<{ ok: true; already_stopped?: boolean }>(`/sessions/${id}/recording/stop`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify(recordingId ? { recordingId } : {}),
+  });
 }
 export function getRecordingUrl(token: string, id: string, rid: string) {
   return request<{ url: string }>(`/sessions/${id}/recording/${rid}/url`, { token });
@@ -178,6 +184,13 @@ export function adminGetParticipants(token: string, id: string) {
 
 export function adminGetEvents(token: string, id: string) {
   return request<{ events: EventRecord[] }>(`/admin/sessions/${id}/events`, { token });
+}
+
+export function adminGetSessionDetail(token: string, id: string) {
+  return request<{ participants: ParticipantRecord[]; events: EventRecord[] }>(
+    `/admin/sessions/${id}/detail`,
+    { token },
+  );
 }
 
 export function adminEndSession(token: string, id: string) {

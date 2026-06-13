@@ -89,8 +89,11 @@ export function Chat({
 
   async function downloadFile(fileId: string) {
     if (!onGetFileUrl) return;
-    const url = await onGetFileUrl(fileId);
-    window.open(url, '_blank');
+    try {
+      await onGetFileUrl(fileId);
+    } catch {
+      /* handled by caller */
+    }
   }
 
   function senderLabel(identity: string, name: string | null | undefined, role: string) {
@@ -166,8 +169,10 @@ export function Chat({
                 }`}
               >
                 <FileIcon mime={f.content_type} />
-                <div className="min-w-0">
-                  <p className="truncate font-medium leading-tight">{f.file_name}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="break-all font-medium leading-tight" title={f.file_name}>
+                    {f.file_name}
+                  </p>
                   <p className="text-[11px] opacity-60">{formatBytes(f.file_size)}</p>
                 </div>
                 <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 opacity-60" fill="currentColor">

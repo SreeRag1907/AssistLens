@@ -63,7 +63,7 @@ export async function startRoomRecording(room: string): Promise<{ egressId: stri
         accessKey: config.s3.accessKey,
         secret: config.s3.secretKey,
         region: config.s3.region,
-        // Egress runs in Docker — must reach MinIO via host.docker.internal, not localhost.
+        // Egress shares LiveKit's network; MinIO stays on the compose network as `minio`.
         endpoint: config.s3.egressEndpoint,
         bucket: config.s3.bucket,
         forcePathStyle: true,
@@ -79,12 +79,21 @@ export async function stopRecording(egressId: string): Promise<void> {
   await egressClient.stopEgress(egressId);
 }
 
-/** True when LiveKit Egress is reachable (recording stack running). */
+let recordingAvailableCache: { value: boolean; expires: number } | null = null;
+const RECORDING_CACHE_MS = 10_000;
+
+/** True when LiveKit Egress is reachable (recording stack running). Cached 60s. */
 export async function isRecordingAvailable(): Promise<boolean> {
+  const now = Date.now();
+  if (recordingAvailableCache && now < recordingAvailableCache.expires) {
+    return recordingAvailableCache.value;
+  }
   try {
     await egressClient.listEgress();
+    recordingAvailableCache = { value: true, expires: now + RECORDING_CACHE_MS };
     return true;
   } catch {
+    recordingAvailableCache = { value: false, expires: now + RECORDING_CACHE_MS };
     return false;
   }
 }

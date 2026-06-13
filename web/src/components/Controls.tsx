@@ -1,3 +1,5 @@
+import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon } from './MediaIcons';
+
 interface Props {
   micEnabled: boolean;
   cameraEnabled: boolean;
@@ -8,6 +10,9 @@ interface Props {
   onToggleRecording?: () => void;
   recording?: boolean;
   recordingBusy?: boolean;
+  recordingSecs?: number;
+  /** When false, record button is visible but dimmed (Egress not running). */
+  recordingAvailable?: boolean;
   onToggleChat?: () => void;
   unreadCount?: number;
 }
@@ -16,6 +21,7 @@ function IconButton({
   onClick,
   label,
   active,
+  off,
   danger,
   recording,
   badge,
@@ -25,6 +31,7 @@ function IconButton({
   onClick: () => void;
   label: string;
   active?: boolean;
+  off?: boolean;
   danger?: boolean;
   recording?: boolean;
   badge?: number;
@@ -35,6 +42,7 @@ function IconButton({
     'relative flex h-12 w-full max-w-[3.25rem] items-center justify-center rounded-xl transition active:scale-95 sm:h-14 sm:max-w-[3.5rem]';
   if (danger) cls += ' bg-red-600 text-white hover:bg-red-500';
   else if (recording) cls += ' bg-red-600 text-white ring-2 ring-red-400/40';
+  else if (off) cls += ' bg-red-600 text-white hover:bg-red-500 ring-1 ring-red-400/30';
   else if (active) cls += ' bg-white/15 text-white hover:bg-white/25';
   else cls += ' bg-slate-700/90 text-white/90 hover:bg-slate-600 ring-1 ring-white/10';
   if (disabled) cls += ' opacity-40 pointer-events-none';
@@ -61,6 +69,8 @@ export function Controls({
   onToggleRecording,
   recording,
   recordingBusy,
+  recordingSecs = 0,
+  recordingAvailable = true,
   onToggleChat,
   unreadCount,
 }: Props) {
@@ -72,28 +82,22 @@ export function Controls({
         className="mx-auto grid w-full max-w-md justify-items-center gap-1.5 sm:max-w-lg sm:gap-2"
         style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}
       >
-        <IconButton onClick={onToggleMic} label={micEnabled ? 'Mute microphone' : 'Unmute microphone'} active={micEnabled}>
-          <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-6 sm:w-6" fill="currentColor" aria-hidden>
-            {micEnabled ? (
-              <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11h-2Z" />
-            ) : (
-              <path d="M3.3 2.3 1.9 3.7l6.1 6.1V11a4 4 0 0 0 6 3.5l1.5 1.5A6 6 0 0 1 6 11H4a8 8 0 0 0 3.2 6.4L2 22.7 3.4 24 21.7 5.7 20.3 4.3 3.3 2.3ZM16 11V5a4 4 0 0 0-7.7-1.5L16 11Z" />
-            )}
-          </svg>
+        <IconButton
+          onClick={onToggleMic}
+          label={micEnabled ? 'Mute microphone' : 'Unmute microphone'}
+          active={micEnabled}
+          off={!micEnabled}
+        >
+          {micEnabled ? <MicIcon /> : <MicOffIcon />}
         </IconButton>
 
         <IconButton
           onClick={onToggleCamera}
           label={cameraEnabled ? 'Turn off camera' : 'Turn on camera'}
           active={cameraEnabled}
+          off={!cameraEnabled}
         >
-          <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-6 sm:w-6" fill="currentColor" aria-hidden>
-            {cameraEnabled ? (
-              <path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4Z" />
-            ) : (
-              <path d="M3.3 2.3 1.9 3.7 4 5.8V17a1 1 0 0 0 1 1h12c.2 0 .4 0 .5-.1l2.8 2.8 1.4-1.4L3.3 2.3ZM17 7v3.5l4-4v11l-2-2V7a1 1 0 0 0-1-1H8.2L7 4.8V4h.2L17 7Z" />
-            )}
-          </svg>
+          {cameraEnabled ? <CameraIcon /> : <CameraOffIcon />}
         </IconButton>
 
         {onToggleChat && (
@@ -106,10 +110,16 @@ export function Controls({
 
         {onToggleRecording && (
           <IconButton
-            onClick={recordingBusy ? () => {} : onToggleRecording}
-            label={recording ? 'Stop recording' : 'Start recording'}
+            onClick={recordingBusy || !recordingAvailable ? () => {} : onToggleRecording}
+            label={
+              !recordingAvailable
+                ? 'Recording unavailable — start Docker'
+                : recording
+                  ? `Stop recording (${recordingSecs}s)`
+                  : 'Start recording'
+            }
             recording={recording}
-            disabled={recordingBusy}
+            disabled={recordingBusy || !recordingAvailable}
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-6 sm:w-6" fill="currentColor" aria-hidden>
               {recording ? <rect x="7" y="7" width="10" height="10" rx="2" /> : <circle cx="12" cy="12" r="6" />}

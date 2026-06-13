@@ -57,6 +57,8 @@ services:
 
   egress:
     image: livekit/egress:latest
+    # Share LiveKit's network so Egress can reach RTC on 127.0.0.1 (required on Docker Desktop).
+    network_mode: 'service:livekit'
     environment:
       EGRESS_CONFIG_FILE: /etc/egress.yaml
     volumes:

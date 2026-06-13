@@ -78,9 +78,12 @@ export interface AgentTokenInfo {
   token: string;
   identity: string;
   roomName: string;
+  activeRecording?: { id: string; status: string } | null;
+  recordingAvailable?: boolean;
 }
 
 // Data-channel payloads exchanged peer-to-peer through the SFU.
 export type DataPayload =
   | { type: 'chat'; id: string; body: string; name: string; role: Role; ts: string }
-  | { type: 'recording'; status: 'in_progress' | 'idle' };
+  | { type: 'recording'; status: 'in_progress' | 'idle' }
+  | { type: 'file'; file: ChatFile };

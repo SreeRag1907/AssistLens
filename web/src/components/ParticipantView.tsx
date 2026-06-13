@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Track, type Participant } from 'livekit-client';
+import { MicOffIcon } from './MediaIcons';
 
 interface Props {
   participant: Participant;
@@ -65,11 +66,7 @@ export function ParticipantView({ participant, isLocal, label, tick, pip = false
       )}
 
       <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs text-white backdrop-blur">
-        {!micOn && (
-          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-red-400" fill="currentColor" aria-hidden>
-            <path d="M3.3 2.3 1.9 3.7l6.1 6.1V11a4 4 0 0 0 6 3.5l1.5 1.5A6 6 0 0 1 6 11H4a8 8 0 0 0 3.2 6.4L2 22.7 3.4 24 21.7 5.7 20.3 4.3 3.3 2.3ZM16 11V5a4 4 0 0 0-7.7-1.5L16 11Z" />
-          </svg>
-        )}
+        {!micOn && <MicOffIcon className="h-3.5 w-3.5 text-red-400" />}
         <span className="font-medium">{isLocal ? 'You' : label}</span>
       </div>
     </div>

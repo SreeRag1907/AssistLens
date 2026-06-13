@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Participant } from 'livekit-client';
 import { useRoom, statusLabel } from '../lib/useRoom';
-import { ApiError, getMessages, listFiles, postMessage, uploadFile, downloadFile } from '../lib/api';
+import { ApiError, getMessages, listFiles, listRecordings, postMessage, uploadFile, downloadFile } from '../lib/api';
 import type { ChatFile, ChatMessage, DataPayload, Role } from '../lib/types';
 import { ParticipantView } from './ParticipantView';
 import { Controls } from './Controls';
@@ -17,8 +17,8 @@ interface Props {
   initialRecording?: boolean;
   recordingAvailable?: boolean;
   onEndSession?: () => Promise<void>;
-  onStartRecording?: () => Promise<void>;
-  onStopRecording?: () => Promise<void>;
+  onStartRecording?: () => Promise<{ id: string } | void>;
+  onStopRecording?: (recordingId: string | null) => Promise<void>;
   onRejoin?: () => Promise<void>;
   /** User clicked Leave/End, or chose Leave on the disconnect overlay. */
   onLeft: () => void;
@@ -42,6 +42,11 @@ export function CallStage(props: Props) {
   const [recording, setRecording] = useState(!!props.initialRecording);
   const [recordingBusy, setRecordingBusy] = useState(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(
+    props.initialRecording ? Date.now() : null,
+  );
+  const [recordingSecs, setRecordingSecs] = useState(0);
+  const [recordingId, setRecordingId] = useState<string | null>(null);
   const [rejoining, setRejoining] = useState(false);
   const [leftVoluntarily, setLeftVoluntarily] = useState(false);
 
@@ -61,7 +66,11 @@ export function CallStage(props: Props) {
         return open;
       });
     } else if (payload.type === 'recording') {
-      setRecording(payload.status === 'in_progress');
+      const active = payload.status === 'in_progress';
+      setRecording(active);
+      setRecordingStartedAt(active ? Date.now() : null);
+    } else if (payload.type === 'file') {
+      setFiles((prev) => (prev.some((f) => f.id === payload.file.id) ? prev : [...prev, payload.file]));
     }
   }, []);
 
@@ -71,6 +80,43 @@ export function CallStage(props: Props) {
     onData: handleData,
     onSessionEnded: props.onSessionEnded ?? props.onLeft,
   });
+
+  const endRecordingUi = useCallback(
+    (notifyCustomer = true) => {
+      setRecording(false);
+      setRecordingStartedAt(null);
+      setRecordingId(null);
+      if (notifyCustomer) {
+        room.sendData({ type: 'recording', status: 'idle' });
+      }
+    },
+    [room],
+  );
+
+  // Keep UI in sync with server — server may fail a recording while the local timer still runs.
+  useEffect(() => {
+    if (!recording || role !== 'agent' || !recordingId) return;
+    const sync = async () => {
+      try {
+        const res = await listRecordings(authToken, sessionId);
+        const rec = res.recordings.find((r) => r.id === recordingId);
+        if (!rec) return;
+        if (rec.status === 'in_progress') return;
+        if (rec.status === 'processing') {
+          endRecordingUi(true);
+          return;
+        }
+        if (rec.status === 'failed') {
+          setRecordingError('Recording failed on the server. Try starting again.');
+          endRecordingUi(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    const t = setInterval(sync, 4000);
+    return () => clearInterval(t);
+  }, [recording, recordingId, role, authToken, sessionId, endRecordingUi]);
 
   useEffect(() => {
     getMessages(authToken, sessionId)
@@ -84,6 +130,17 @@ export function CallStage(props: Props) {
   useEffect(() => {
     if (chatOpen) setUnread(0);
   }, [chatOpen, messages.length]);
+
+  useEffect(() => {
+    if (!recording || !recordingStartedAt) {
+      setRecordingSecs(0);
+      return;
+    }
+    const tick = () => setRecordingSecs(Math.floor((Date.now() - recordingStartedAt) / 1000));
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [recording, recordingStartedAt]);
 
   const participants: Participant[] = useMemo(() => {
     if (!room.room) return [];
@@ -117,26 +174,35 @@ export function CallStage(props: Props) {
 
   const toggleRecording = useCallback(async () => {
     setRecordingError(null);
+    if (!recording && props.recordingAvailable === false) {
+      setRecordingError('Recording is unavailable. Run docker compose up in the project folder.');
+      return;
+    }
+    if (recording && recordingStartedAt && Date.now() - recordingStartedAt < 10_000) {
+      setRecordingError('Keep recording for at least 10 seconds so the video can save.');
+      return;
+    }
     setRecordingBusy(true);
     try {
       if (!recording) {
-        await props.onStartRecording?.();
+        const started = await props.onStartRecording?.();
         setRecording(true);
+        setRecordingStartedAt(Date.now());
+        if (started?.id) setRecordingId(started.id);
         room.sendData({ type: 'recording', status: 'in_progress' });
       } else {
-        await props.onStopRecording?.();
-        setRecording(false);
-        room.sendData({ type: 'recording', status: 'idle' });
+        await props.onStopRecording?.(recordingId);
+        endRecordingUi(true);
       }
     } catch (err) {
       setRecordingError(
         err instanceof ApiError ? err.message : 'Could not update recording. Try again.',
       );
-      setRecording(false);
+      endRecordingUi(true);
     } finally {
       setRecordingBusy(false);
     }
-  }, [recording, room, props]);
+  }, [recording, recordingStartedAt, room, props, endRecordingUi]);
 
   const handleUpload = useCallback(
     async (file: File) => {
@@ -144,15 +210,7 @@ export function CallStage(props: Props) {
       try {
         const res = await uploadFile(authToken, sessionId, file);
         setFiles((prev) => [...prev, res.file]);
-        // Notify others via data channel (they'll receive file info and can fetch the download URL)
-        room.sendData({
-          type: 'chat',
-          id: `file-${res.file.id}`,
-          body: `📎 ${res.file.file_name}`,
-          name: res.file.sender_name ?? 'Participant',
-          role,
-          ts: res.file.created_at,
-        });
+        room.sendData({ type: 'file', file: res.file });
       } catch (err) {
         alert(err instanceof ApiError ? err.message : 'Upload failed. Is MinIO running?');
       } finally {
@@ -173,12 +231,24 @@ export function CallStage(props: Props) {
 
   const leave = useCallback(async () => {
     setLeftVoluntarily(true);
-    if (role === 'agent' && props.onEndSession) {
-      await props.onEndSession();
+    if (role === 'agent') {
+      if (recording) {
+        endRecordingUi(true);
+        if (props.onStopRecording) {
+          try {
+            await props.onStopRecording(recordingId);
+          } catch {
+            /* session end also stops recording server-side */
+          }
+        }
+      }
+      if (props.onEndSession) {
+        await props.onEndSession();
+      }
     }
     room.disconnect();
     props.onLeft();
-  }, [role, room, props]);
+  }, [role, recording, room, props, endRecordingUi]);
 
   const handleRejoin = useCallback(async () => {
     if (!props.onRejoin) return;
@@ -192,7 +262,7 @@ export function CallStage(props: Props) {
 
   const connecting = room.status === 'connecting' || room.status === 'reconnecting';
   const dropped = !leftVoluntarily && (room.status === 'disconnected' || room.status === 'error');
-  const showRecord = role === 'agent' && props.recordingAvailable === true;
+  const showRecord = role === 'agent';
 
   return (
     <div className="relative grid h-[100dvh] w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-slate-950 text-white">
@@ -217,8 +287,11 @@ export function CallStage(props: Props) {
             {recording && (
               <span className="flex items-center gap-1.5 rounded-full bg-red-600/90 px-3 py-1 text-xs font-semibold text-white">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
-                REC
+                REC {recordingSecs > 0 ? `${Math.floor(recordingSecs / 60)}:${String(recordingSecs % 60).padStart(2, '0')}` : ''}
               </span>
+            )}
+            {recordingBusy && (
+              <span className="text-xs text-amber-300">Starting recording…</span>
             )}
           </div>
         </div>
@@ -239,6 +312,12 @@ export function CallStage(props: Props) {
       </header>
 
       <div className="relative min-h-0 px-3 py-2">
+        {recording && role === 'customer' && (
+          <div className="mx-auto mb-2 flex max-w-5xl items-center justify-center gap-2 rounded-xl bg-red-600/90 px-4 py-2 text-center text-sm font-medium text-white">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+            This call is being recorded
+          </div>
+        )}
         <div className="mx-auto flex h-full max-w-5xl flex-col">
           <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border-2 border-white/15 bg-slate-900 shadow-[inset_0_0_60px_rgba(0,0,0,0.35)]">
             {remotes.length > 0 ? (
@@ -323,6 +402,8 @@ export function CallStage(props: Props) {
             onToggleRecording={showRecord ? toggleRecording : undefined}
             recording={recording}
             recordingBusy={recordingBusy}
+            recordingSecs={recordingSecs}
+            recordingAvailable={props.recordingAvailable !== false}
           />
         </footer>
       )}

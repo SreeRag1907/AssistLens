@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   adminListSessions,
-  adminGetParticipants,
-  adminGetEvents,
+  adminGetSessionDetail,
   adminEndSession,
   getAgentToken,
 } from '../lib/api';
@@ -62,6 +61,9 @@ export function AdminDashboard() {
   const [filter, setFilter] = useState<'all' | 'active' | 'ended'>('all');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const live = sessions.filter((s) => s.status === 'active');
+  const hasLive = live.length > 0;
+
   const load = useCallback(async () => {
     try {
       const data = await adminListSessions(token);
@@ -76,11 +78,17 @@ export function AdminDashboard() {
 
   useEffect(() => {
     load();
-    pollRef.current = setInterval(load, 10_000);
+  }, [load]);
+
+  useEffect(() => {
+    const ms = hasLive ? 15000 : 60000;
+    pollRef.current = setInterval(() => {
+      if (!document.hidden) load();
+    }, ms);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [load]);
+  }, [load, hasLive]);
 
   const toggleExpand = useCallback(
     async (id: string) => {
@@ -93,18 +101,22 @@ export function AdminDashboard() {
         return;
       }
       setExpanded((prev) => ({ ...prev, [id]: { participants: null, events: null, loading: true } }));
-      const [pRes, eRes] = await Promise.allSettled([
-        adminGetParticipants(token, id),
-        adminGetEvents(token, id),
-      ]);
-      setExpanded((prev) => ({
-        ...prev,
-        [id]: {
-          participants: pRes.status === 'fulfilled' ? pRes.value.participants : [],
-          events: eRes.status === 'fulfilled' ? eRes.value.events : [],
-          loading: false,
-        },
-      }));
+      try {
+        const detail = await adminGetSessionDetail(token, id);
+        setExpanded((prev) => ({
+          ...prev,
+          [id]: {
+            participants: detail.participants,
+            events: detail.events,
+            loading: false,
+          },
+        }));
+      } catch {
+        setExpanded((prev) => ({
+          ...prev,
+          [id]: { participants: [], events: [], loading: false },
+        }));
+      }
     },
     [expanded, token],
   );
@@ -125,7 +137,6 @@ export function AdminDashboard() {
     [token, load],
   );
 
-  const live = sessions.filter((s) => s.status === 'active');
   const filtered = filter === 'all' ? sessions : sessions.filter((s) => s.status === filter);
 
   return (

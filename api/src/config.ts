@@ -32,10 +32,8 @@ export const config = {
   s3: {
     // Host-reachable MinIO URL (API reads/writes, presigned URLs).
     endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
-    // URL Egress uses when uploading from Docker (localhost inside a container
-    // is the container itself — use host.docker.internal on Docker Desktop).
-    egressEndpoint:
-      process.env.S3_EGRESS_ENDPOINT ?? 'http://host.docker.internal:9000',
+    // Egress runs in Docker Compose — use the internal MinIO hostname, never localhost.
+    egressEndpoint: process.env.S3_EGRESS_ENDPOINT ?? 'http://minio:9000',
     accessKey: process.env.S3_ACCESS_KEY ?? 'assistlens',
     secretKey: process.env.S3_SECRET_KEY ?? 'assistlens-minio',
     region: process.env.S3_REGION ?? 'us-east-1',

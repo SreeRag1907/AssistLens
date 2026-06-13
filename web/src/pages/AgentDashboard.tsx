@@ -49,15 +49,24 @@ export function AgentDashboard() {
     }
   }, [token, navigate]);
 
+  const hasLive = sessions.some((s) => s.status === 'active');
+
   useEffect(() => {
     if (!token) {
       navigate('/');
       return;
     }
     refresh();
-    const t = setInterval(refresh, 5000);
-    return () => clearInterval(t);
   }, [token, navigate, refresh]);
+
+  useEffect(() => {
+    if (!token) return;
+    const ms = hasLive ? 8000 : 60000;
+    const t = setInterval(() => {
+      if (!document.hidden) refresh();
+    }, ms);
+    return () => clearInterval(t);
+  }, [token, refresh, hasLive]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();

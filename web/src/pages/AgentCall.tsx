@@ -5,7 +5,6 @@ import {
   getAgentToken,
   getAgentToken_,
   getRecordingStatus,
-  getSession,
   startRecording,
   stopRecording,
   ApiError,
@@ -25,15 +24,10 @@ export function AgentCall() {
 
   const refreshTokens = useCallback(async () => {
     if (!token) return;
-    const [res, detail, recStatus] = await Promise.all([
-      getAgentToken_(token, id),
-      getSession(token, id),
-      getRecordingStatus(token).catch(() => ({ available: false })),
-    ]);
+    const res = await getAgentToken_(token, id);
     setInfo(res);
-    setRecordingAvailable(recStatus.available);
-    const active = detail.recordings.find((r) => r.status === 'in_progress');
-    setRecId(active ? active.id : null);
+    setRecordingAvailable(res.recordingAvailable ?? false);
+    setRecId(res.activeRecording?.id ?? null);
     setCallKey((k) => k + 1);
   }, [token, id]);
 
@@ -46,6 +40,19 @@ export function AgentCall() {
       setError(err instanceof ApiError ? err.message : 'Could not join the call.');
     });
   }, [token, id, navigate, refreshTokens]);
+
+  // Re-check Egress while in call (Docker may start after join; don't remount CallStage).
+  useEffect(() => {
+    if (!token) return;
+    const check = () => {
+      getRecordingStatus(token)
+        .then((res) => setRecordingAvailable(res.available))
+        .catch(() => setRecordingAvailable(false));
+    };
+    check();
+    const t = setInterval(check, 10_000);
+    return () => clearInterval(t);
+  }, [token]);
 
   const handleRejoin = useCallback(async () => {
     if (!token) return;
@@ -93,9 +100,10 @@ export function AgentCall() {
       onStartRecording={async () => {
         const res = await startRecording(token, id);
         setRecId(res.recording.id);
+        return { id: res.recording.id };
       }}
-      onStopRecording={async () => {
-        await stopRecording(token, id);
+      onStopRecording={async (recordingId) => {
+        await stopRecording(token, id, recordingId ?? recId ?? undefined);
         setRecId(null);
       }}
       onLeft={() => navigate(`/agent/history/${id}`)}

@@ -3,9 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   getAgentToken,
   getInvite,
-  getMessages,
   getSession,
-  listFiles,
   listRecordings,
   downloadRecording,
   downloadFile,
@@ -34,10 +32,11 @@ export function SessionDetail() {
   const [recordings, setRecordings] = useState<RecordingRecord[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [files, setFiles] = useState<ChatFile[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadBusy, setDownloadBusy] = useState<string | null>(null);
   const [downloadMsg, setDownloadMsg] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [share, setShare] = useState<{ open: boolean; url: string | null; loading: boolean; error: string | null }>({
     open: false,
     url: null,
@@ -66,60 +65,56 @@ export function SessionDetail() {
       navigate('/');
       return;
     }
+    setLoading(true);
     (async () => {
       try {
-        const [res, msgRes, fileRes] = await Promise.all([
-          getSession(token, id),
-          getMessages(token, id),
-          listFiles(token, id).catch(() => ({ files: [] as ChatFile[] })),
-        ]);
+        const res = await getSession(token, id);
         setSession(res.session);
         setParticipants(res.participants);
         setEvents(res.events);
         setRecordings(res.recordings);
-        setMessages(msgRes.messages);
-        setFiles(fileRes.files);
+        setMessages(res.messages ?? []);
+        setFiles(res.files ?? []);
+        setError(null);
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Could not load session.');
+      } finally {
+        setLoading(false);
       }
     })();
   }, [token, id, navigate]);
 
-  // Poll recording status when any recording is processing/in_progress
+  // Poll recording status only while any recording is pending — timer stays stable across updates.
   useEffect(() => {
     if (!token) return;
-    const hasPending = recordings.some(
+    const pending = recordings.some(
       (r) => r.status === 'in_progress' || r.status === 'processing',
     );
-    if (hasPending && !pollRef.current) {
-      pollRef.current = setInterval(async () => {
+
+    if (pending && !pollTimerRef.current) {
+      pollTimerRef.current = setInterval(async () => {
         try {
           const res = await listRecordings(token, id);
           setRecordings(res.recordings);
-          const stillPending = res.recordings.some(
-            (r) => r.status === 'in_progress' || r.status === 'processing',
-          );
-          if (!stillPending && pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
         } catch {
           /* ignore */
         }
-      }, 5000);
+      }, 8000);
     }
-    if (!hasPending && pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
+    if (!pending && pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
     }
+  }, [recordings, token, id]);
+
+  useEffect(() => {
     return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recordings.map((r) => r.status).join(','), token, id]);
+  }, []);
 
   async function download(rid: string, objectKey: string | null) {
     if (!token) return;
@@ -132,7 +127,6 @@ export function SessionDetail() {
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : 'Recording not ready.';
       setDownloadMsg({ id: rid, msg, ok: false });
-      // Refresh status if file was missing
       if (err instanceof ApiError && (err.status === 404 || err.code === 'file_missing')) {
         listRecordings(token, id).then((r) => setRecordings(r.recordings)).catch(() => {});
       }
@@ -148,6 +142,15 @@ export function SessionDetail() {
     } catch {
       alert('Could not download file. Please try again.');
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-bg text-fg">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-line border-t-brand" />
+        <p className="mt-4 text-sm text-muted">Loading session…</p>
+      </div>
+    );
   }
 
   if (error) {
@@ -253,6 +256,11 @@ export function SessionDetail() {
                       )}
                     </div>
                   </div>
+                  {r.status === 'failed' && (
+                    <p className="text-xs text-red-400">
+                      Recording failed or file was lost (e.g. after a Docker reset). Please record again.
+                    </p>
+                  )}
                   {downloadMsg?.id === r.id && (
                     <p
                       className={`text-xs ${downloadMsg.ok ? 'text-emerald-500' : 'text-red-400'}`}
@@ -273,8 +281,10 @@ export function SessionDetail() {
             <ul className="divide-y divide-line">
               {files.map((f) => (
                 <li key={f.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-fg">{f.file_name}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="break-all font-medium text-fg" title={f.file_name}>
+                      {f.file_name}
+                    </p>
                     <p className="text-xs text-muted">
                       {f.sender_name ?? f.sender_identity} · {fmt(f.created_at)} ·{' '}
                       {(f.file_size / 1024).toFixed(0)} KB

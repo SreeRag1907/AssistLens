@@ -7,12 +7,35 @@ import { signInviteToken } from '../auth.js';
 import { requireAgent } from '../guards.js';
 import { closeAllParticipants } from '../presence.js';
 import { isRecordingAvailable, mintAccessToken, closeRoom, startRoomRecording, stopRecording } from '../livekit.js';
-import type { SessionRow, ParticipantRow, EventRow, RecordingRow } from '../types.js';
+import { reconcileStaleRecordings } from '../recordings.js';
+import type { SessionRow, ParticipantRow, EventRow, RecordingRow, ChatMessageRow, ChatFileRow } from '../types.js';
 
 const createSchema = z.object({ title: z.string().max(200).optional() });
 
 function inviteUrl(token: string): string {
   return `${config.publicWebOrigin}/join?token=${encodeURIComponent(token)}`;
+}
+
+/** Stop active egress and give it a moment to flush before the room is deleted. */
+async function stopActiveRecording(
+  sessionId: string,
+  log: { warn: (obj: unknown, msg: string) => void },
+): Promise<void> {
+  const recRes = await query<RecordingRow>(
+    `SELECT r.* FROM recordings r
+     WHERE r.session_id = $1 AND r.status = 'in_progress'
+     ORDER BY r.created_at DESC LIMIT 1`,
+    [sessionId],
+  );
+  const rec = recRes.rows[0];
+  if (!rec?.egress_id) return;
+  try {
+    await stopRecording(rec.egress_id);
+    await query(`UPDATE recordings SET status = 'processing', updated_at = now() WHERE id = $1`, [rec.id]);
+    await new Promise((r) => setTimeout(r, 3000));
+  } catch (err) {
+    log.warn({ err, recordingId: rec.id }, 'failed to stop active recording');
+  }
 }
 
 // A fresh, scoped, expiring customer invite for a session. Tokens are not
@@ -82,11 +105,14 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     if (!agent) return;
     const res = await query(
       `SELECT s.*,
-              (SELECT count(*) FROM participants p WHERE p.session_id = s.id) AS participant_count,
-              (SELECT count(*) FROM participants p WHERE p.session_id = s.id AND p.left_at IS NULL) AS live_count
+              COUNT(p.id)::int AS participant_count,
+              COUNT(p.id) FILTER (WHERE p.left_at IS NULL)::int AS live_count
        FROM sessions s
+       LEFT JOIN participants p ON p.session_id = s.id
        WHERE s.agent_id = $1
-       ORDER BY s.created_at DESC`,
+       GROUP BY s.id
+       ORDER BY s.created_at DESC
+       LIMIT 50`,
       [agent.agentId],
     );
     return { sessions: res.rows };
@@ -107,10 +133,25 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(404).send({ error: 'not_found', message: 'Session not found.' });
     }
 
-    const [participants, events, recordings] = await Promise.all([
+    await reconcileStaleRecordings(id);
+
+    const [participants, events, recordings, messages, chatFiles] = await Promise.all([
       query<ParticipantRow>('SELECT * FROM participants WHERE session_id = $1 ORDER BY joined_at', [id]),
-      query<EventRow>('SELECT * FROM events WHERE session_id = $1 ORDER BY created_at', [id]),
+      query<EventRow>(
+        `SELECT * FROM (
+           SELECT * FROM events WHERE session_id = $1 ORDER BY created_at DESC LIMIT 200
+         ) e ORDER BY created_at ASC`,
+        [id],
+      ),
       query<RecordingRow>('SELECT * FROM recordings WHERE session_id = $1 ORDER BY created_at', [id]),
+      query<ChatMessageRow>(
+        'SELECT id, sender_identity, sender_role, sender_name, body, created_at FROM chat_messages WHERE session_id = $1 ORDER BY created_at ASC',
+        [id],
+      ),
+      query<ChatFileRow>(
+        'SELECT id, session_id, sender_identity, sender_name, file_name, file_size, content_type, object_key, created_at FROM chat_files WHERE session_id = $1 ORDER BY created_at ASC',
+        [id],
+      ),
     ]);
 
     return {
@@ -118,6 +159,8 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       participants: participants.rows,
       events: events.rows,
       recordings: recordings.rows,
+      messages: messages.rows,
+      files: chatFiles.rows,
     };
   });
 
@@ -156,7 +199,23 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       name: agent.email,
       role: 'agent',
     });
-    return { url: config.livekit.publicUrl, token, identity: agent.identity, roomName: session.room_name };
+
+    const [activeRec, recordingAvailable] = await Promise.all([
+      query<RecordingRow>(
+        `SELECT id, status FROM recordings WHERE session_id = $1 AND status = 'in_progress' ORDER BY created_at DESC LIMIT 1`,
+        [id],
+      ),
+      isRecordingAvailable(),
+    ]);
+
+    return {
+      url: config.livekit.publicUrl,
+      token,
+      identity: agent.identity,
+      roomName: session.room_name,
+      activeRecording: activeRec.rows[0] ?? null,
+      recordingAvailable,
+    };
   });
 
   // End a session (agent only) — closes all media connections cleanly.
@@ -172,6 +231,7 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     const session = sRes.rows[0];
     if (!session) return reply.code(404).send({ error: 'not_found', message: 'Session not found.' });
 
+    await stopActiveRecording(id, req.log);
     await closeRoom(session.room_name);
     await query(
       `UPDATE sessions SET status = 'ended', ended_at = now(), ended_by = $2
@@ -203,6 +263,14 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(410).send({ error: 'session_ended', message: 'Session already ended.' });
     }
 
+    const existing = await query<RecordingRow>(
+      `SELECT * FROM recordings WHERE session_id = $1 AND status = 'in_progress' ORDER BY created_at DESC LIMIT 1`,
+      [id],
+    );
+    if (existing.rows[0]) {
+      return { recording: existing.rows[0], already_active: true };
+    }
+
     try {
       const { egressId, objectKey } = await startRoomRecording(session.room_name);
       const rec = await query<RecordingRow>(
@@ -227,17 +295,26 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     const agent = await requireAgent(req, reply);
     if (!agent) return;
     const { id } = req.params as { id: string };
+    const body = (req.body ?? {}) as { recordingId?: string };
 
-    const recRes = await query<RecordingRow>(
-      `SELECT r.* FROM recordings r
-       JOIN sessions s ON s.id = r.session_id
-       WHERE r.session_id = $1 AND s.agent_id = $2 AND r.status = 'in_progress'
-       ORDER BY r.created_at DESC LIMIT 1`,
-      [id, agent.agentId],
-    );
+    const recRes = body.recordingId
+      ? await query<RecordingRow>(
+          `SELECT r.* FROM recordings r
+           JOIN sessions s ON s.id = r.session_id
+           WHERE r.id = $3 AND r.session_id = $1 AND s.agent_id = $2
+             AND r.status IN ('in_progress', 'processing')`,
+          [id, agent.agentId, body.recordingId],
+        )
+      : await query<RecordingRow>(
+          `SELECT r.* FROM recordings r
+           JOIN sessions s ON s.id = r.session_id
+           WHERE r.session_id = $1 AND s.agent_id = $2 AND r.status = 'in_progress'
+           ORDER BY r.created_at DESC LIMIT 1`,
+          [id, agent.agentId],
+        );
     const rec = recRes.rows[0];
     if (!rec || !rec.egress_id) {
-      return reply.code(404).send({ error: 'not_recording', message: 'No active recording to stop.' });
+      return { ok: true, already_stopped: true };
     }
 
     try {
@@ -273,13 +350,13 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     if (rec.status !== 'ready') {
       return reply
         .code(202)
-        .send({ error: 'processing', message: 'Recording is still processing, please try again shortly.' });
+        .send({ error: 'processing', message: 'Recording is still processing — wait until status shows Ready before downloading.' });
     }
 
     const { objectExists, getObjectStream, recordingsBucket } = await import('../s3.js');
     const exists = await objectExists(recordingsBucket, rec.object_key);
     if (!exists) {
-      await query(`UPDATE recordings SET status = 'processing', updated_at = now() WHERE id = $1`, [rec.id]);
+      await query(`UPDATE recordings SET status = 'failed', updated_at = now() WHERE id = $1`, [rec.id]);
       return reply
         .code(404)
         .send({
@@ -320,10 +397,13 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     const { objectExists, presignGet, recordingsBucket } = await import('../s3.js');
     const exists = await objectExists(recordingsBucket, rec.object_key);
     if (!exists) {
-      await query(`UPDATE recordings SET status = 'processing', updated_at = now() WHERE id = $1`, [rec.id]);
+      await query(`UPDATE recordings SET status = 'failed', updated_at = now() WHERE id = $1`, [rec.id]);
       return reply
-        .code(202)
-        .send({ error: 'processing', message: 'Recording file is still being written. Please try again in a moment.' });
+        .code(404)
+        .send({
+          error: 'file_missing',
+          message: 'Recording file not found in storage. Please record again with Docker running.',
+        });
     }
 
     const url = await presignGet(recordingsBucket, rec.object_key, 3600);
@@ -335,14 +415,22 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     const agent = await requireAgent(req, reply);
     if (!agent) return;
     const { id } = req.params as { id: string };
-    const owns = await query('SELECT 1 FROM sessions WHERE id = $1 AND agent_id = $2', [id, agent.agentId]);
-    if ((owns.rowCount ?? 0) === 0) {
-      return reply.code(403).send({ error: 'forbidden' });
-    }
+
+    await reconcileStaleRecordings(id);
+
     const res = await query<RecordingRow>(
-      'SELECT * FROM recordings WHERE session_id = $1 ORDER BY created_at ASC',
-      [id],
+      `SELECT r.* FROM recordings r
+       JOIN sessions s ON s.id = r.session_id
+       WHERE r.session_id = $1 AND s.agent_id = $2
+       ORDER BY r.created_at ASC`,
+      [id, agent.agentId],
     );
+    if (res.rowCount === 0) {
+      const owns = await query('SELECT 1 FROM sessions WHERE id = $1 AND agent_id = $2', [id, agent.agentId]);
+      if ((owns.rowCount ?? 0) === 0) {
+        return reply.code(403).send({ error: 'forbidden' });
+      }
+    }
     return { recordings: res.rows };
   });
 }

@@ -117,10 +117,9 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
           if (!sessionId) break;
 
           if (event.event === 'egress_ended') {
-            // EGRESS_COMPLETE = 3, EGRESS_FAILED = 4 in the enum.
-            const failed = info.status === 4;
-            // fileResults[0].filename is the actual S3 key Egress used.
-            // Only mark ready when we have a confirmed key; otherwise keep as processing.
+            // EGRESS_COMPLETE = 3, EGRESS_FAILED = 4, EGRESS_ABORTED = 5
+            const complete = info.status === 3;
+            const failed = !complete;
             const fileKey = info.fileResults?.[0]?.filename ?? null;
             const newStatus = failed ? 'failed' : fileKey ? 'ready' : 'processing';
             await query(
@@ -131,6 +130,8 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
             );
             await logEvent(sessionId, failed ? 'recording_failed' : 'recording_ready', null, {
               object_key: fileKey,
+              egress_status: info.status,
+              error: info.error ?? null,
             });
           }
           break;

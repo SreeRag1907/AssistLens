@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 import { requireAgent } from '../guards.js';
 import { closeAllParticipants } from '../presence.js';
-import { closeRoom } from '../livekit.js';
+import { closeRoom, stopRecording } from '../livekit.js';
 import type { SessionRow, ParticipantRow, EventRow } from '../types.js';
 
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
@@ -45,6 +45,27 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return { participants: res.rows };
   });
 
+  // Combined detail for admin expand (one round trip instead of two).
+  app.get('/api/admin/sessions/:id/detail', async (req, reply) => {
+    const agent = await requireAgent(req, reply);
+    if (!agent) return;
+    const { id } = req.params as { id: string };
+
+    const [participants, events] = await Promise.all([
+      query<ParticipantRow>(
+        'SELECT * FROM participants WHERE session_id = $1 ORDER BY joined_at ASC',
+        [id],
+      ),
+      query<EventRow>(
+        `SELECT * FROM (
+           SELECT * FROM events WHERE session_id = $1 ORDER BY created_at DESC LIMIT 100
+         ) e ORDER BY created_at ASC`,
+        [id],
+      ),
+    ]);
+    return { participants: participants.rows, events: events.rows };
+  });
+
   // Event log for a session (admin view).
   app.get('/api/admin/sessions/:id/events', async (req, reply) => {
     const agent = await requireAgent(req, reply);
@@ -52,7 +73,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
 
     const res = await query<EventRow>(
-      'SELECT * FROM events WHERE session_id = $1 ORDER BY created_at ASC',
+      `SELECT * FROM (
+         SELECT * FROM events WHERE session_id = $1 ORDER BY created_at DESC LIMIT 100
+       ) e ORDER BY created_at ASC`,
       [id],
     );
     return { events: res.rows };
@@ -71,6 +94,21 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
     if (session.status === 'ended') {
       return { ok: true, already_ended: true };
+    }
+
+    const recRes = await query<{ id: string; egress_id: string | null }>(
+      `SELECT id, egress_id FROM recordings WHERE session_id = $1 AND status = 'in_progress' ORDER BY created_at DESC LIMIT 1`,
+      [session.id],
+    );
+    const activeRec = recRes.rows[0];
+    if (activeRec?.egress_id) {
+      try {
+        await stopRecording(activeRec.egress_id);
+        await query(`UPDATE recordings SET status = 'processing', updated_at = now() WHERE id = $1`, [activeRec.id]);
+        await new Promise((r) => setTimeout(r, 3000));
+      } catch {
+        /* proceed with session end */
+      }
     }
 
     try {

@@ -69,6 +69,9 @@ CREATE TABLE IF NOT EXISTS recordings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_recordings_session ON recordings(session_id);
+CREATE INDEX IF NOT EXISTS idx_recordings_egress ON recordings(egress_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_agent_created ON sessions(agent_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_participants_session_live ON participants(session_id) WHERE left_at IS NULL;
 
 -- Chat file attachments (file sharing in call)
 CREATE TABLE IF NOT EXISTS chat_files (

@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { migrate, seedAgent } from './db.js';
 import { ensureBuckets } from './s3.js';
 import { sweepExpiredGrace } from './presence.js';
+import { reconcileStaleRecordings } from './recordings.js';
 import { authRoutes } from './routes/auth.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { joinRoutes } from './routes/join.js';
@@ -66,6 +67,8 @@ async function main(): Promise<void> {
   }
   app.log.info('migrations applied + seed agent ready');
 
+  reconcileStaleRecordings().catch((err) => app.log.warn({ err }, 'initial recording reconcile failed'));
+
   // Finalize "left" once a participant's reconnect grace window elapses.
   // The grace timer lives in participants.grace_until; this sweep is the
   // worker that turns an expired window into an authoritative 'left' event.
@@ -73,6 +76,11 @@ async function main(): Promise<void> {
     sweepExpiredGrace().catch((err) => app.log.error({ err }, 'grace sweep failed'));
   }, 5000);
   sweep.unref();
+
+  const recordingSweep = setInterval(() => {
+    reconcileStaleRecordings().catch((err) => app.log.error({ err }, 'recording reconcile failed'));
+  }, 60_000);
+  recordingSweep.unref();
 
   await app.listen({ port: config.port, host: '0.0.0.0' });
 }
