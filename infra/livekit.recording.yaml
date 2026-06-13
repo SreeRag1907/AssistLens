@@ -1,0 +1,28 @@
+# Self-hosted LiveKit configured for the recording (Egress) stack.
+# Redis is required ONLY so LiveKit and Egress can coordinate.
+port: 7880
+bind_addresses:
+  - ""
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50100
+  use_external_ip: true
+
+redis:
+  address: redis:6379
+
+turn:
+  enabled: true
+  udp_port: 7882
+
+webhook:
+  api_key: devkey
+  urls:
+    - http://host.docker.internal:8080/api/webhooks/livekit
+
+logging:
+  level: info
+
+prometheus_port: 6789

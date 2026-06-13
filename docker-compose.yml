@@ -1,0 +1,26 @@
+# Local development: run a self-hosted LiveKit SFU only.
+# Postgres is Supabase (cloud), the API runs via `npm run dev` in /api, and the
+# web app via `npm run dev` in /web. No Caddy, Redis, or MinIO in the base path.
+#
+#   docker compose up            # LiveKit only
+#
+# For the optional recording bonus (adds Redis + MinIO + Egress), use:
+#   docker compose -f docker-compose.recording.yml up
+
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    command: ["--config", "/etc/livekit.yaml"]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevse}"
+    volumes:
+      - ./infra/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"          # signalling (ws)
+      - "7881:7881"          # rtc/tcp
+      - "7882:7882/udp"      # rtc/udp + embedded TURN
+      - "50000-50100:50000-50100/udp"
+    extra_hosts:
+      # Lets LiveKit (in the container) deliver webhooks to the API running on
+      # the host via http://host.docker.internal:8080
+      - "host.docker.internal:host-gateway"

@@ -1,0 +1,70 @@
+# Optional RECORDING stack (Section 3 bonus). Adds Redis + MinIO + LiveKit
+# Egress on top of the self-hosted SFU. Egress coordinates with LiveKit over
+# Redis and writes the finished MP4 to MinIO (self-hosted S3 — storage we own).
+#
+#   docker compose -f docker-compose.recording.yml up
+#
+# Keep the API + web running on the host (npm run dev) as usual.
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "no"]
+    expose:
+      - "6379"
+
+  livekit:
+    image: livekit/livekit-server:latest
+    command: ["--config", "/etc/livekit.yaml"]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecretdevsecretdevsecretdevse}"
+    volumes:
+      - ./infra/livekit.recording.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+      - "50000-50100:50000-50100/udp"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-assistlens}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-assistlens-minio}
+    volumes:
+      - miniodata:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set local http://minio:9000 ${S3_ACCESS_KEY:-assistlens} ${S3_SECRET_KEY:-assistlens-minio}) do echo 'waiting for minio'; sleep 2; done;
+      /usr/bin/mc mb -p local/${MINIO_BUCKET:-recordings} || true;
+      /usr/bin/mc anonymous set download local/${MINIO_BUCKET:-recordings} || true;
+      exit 0;
+      "
+
+  egress:
+    image: livekit/egress:latest
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    volumes:
+      - ./infra/egress.yaml:/etc/egress.yaml:ro
+    cap_add:
+      - SYS_ADMIN
+    depends_on:
+      - livekit
+      - redis
+
+volumes:
+  miniodata:

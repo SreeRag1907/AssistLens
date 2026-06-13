@@ -1,0 +1,39 @@
+# Render blueprint for the AssistLens API (Fastify). Postgres is Supabase and
+# the web app deploys to Vercel; LiveKit is a separate container service (see
+# README → Deploy). Apply with Render → Blueprints → New from repo.
+services:
+  - type: web
+    name: assistlens-api
+    runtime: docker
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: ./api
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8080"
+      - key: JWT_SECRET
+        sync: false
+      - key: INVITE_SECRET
+        sync: false
+      - key: AGENT_EMAIL
+        sync: false
+      - key: AGENT_PASSWORD
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: PUBLIC_LIVEKIT_URL
+        sync: false
+      - key: PUBLIC_WEB_ORIGIN
+        sync: false
+      - key: RECONNECT_GRACE_SECONDS
+        value: "30"
+      - key: INVITE_TTL_SECONDS
+        value: "86400"

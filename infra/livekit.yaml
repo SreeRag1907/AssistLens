@@ -1,0 +1,29 @@
+# Self-hosted LiveKit (single node) — local development.
+# No Redis needed for a single node; Egress (recording) adds Redis separately.
+port: 7880
+bind_addresses:
+  - ""
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50100
+  use_external_ip: true
+
+# Embedded TURN for clients behind restrictive NATs.
+turn:
+  enabled: true
+  udp_port: 7882
+
+# Forward room/participant lifecycle events to our API so the durable record
+# (participants, events, reconnect grace) stays server-authoritative.
+# host.docker.internal => the API running on the host machine in dev.
+webhook:
+  api_key: devkey
+  urls:
+    - http://host.docker.internal:8080/api/webhooks/livekit
+
+logging:
+  level: info
+
+prometheus_port: 6789

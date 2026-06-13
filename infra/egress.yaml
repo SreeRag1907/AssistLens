@@ -1,0 +1,15 @@
+# LiveKit Egress configuration — records room composites to MinIO (S3).
+api_key: devkey
+api_secret: devsecretdevsecretdevsecretdevse
+ws_url: ws://livekit:7880
+redis:
+  address: redis:6379
+s3:
+  access_key: assistlens
+  secret: assistlens-minio
+  region: us-east-1
+  endpoint: http://minio:9000
+  bucket: recordings
+  force_path_style: true
+logging:
+  level: info
