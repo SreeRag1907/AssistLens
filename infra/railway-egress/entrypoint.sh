@@ -46,7 +46,9 @@ if [ -n "$REDIS_PASSWORD" ]; then
   password: ${REDIS_PASSWORD}"
 fi
 
-cat > /etc/egress.yaml <<EOF
+EGRESS_CONFIG="/tmp/egress.yaml"
+
+cat > "${EGRESS_CONFIG}" <<EOF
 api_key: ${LIVEKIT_API_KEY}
 api_secret: ${LIVEKIT_API_SECRET}
 ws_url: ${LIVEKIT_WS_URL}
@@ -64,7 +66,7 @@ logging:
 EOF
 
 echo "=== Egress config ==="
-cat /etc/egress.yaml
+cat "${EGRESS_CONFIG}"
 echo ""
 echo "=== Starting LiveKit Egress ==="
 echo "  LiveKit: ${LIVEKIT_WS_URL}"
@@ -72,5 +74,5 @@ echo "  Redis: ${REDIS_ADDRESS}"
 echo "  S3: ${S3_ENDPOINT}/${S3_BUCKET}"
 echo ""
 
-export EGRESS_CONFIG_FILE=/etc/egress.yaml
+export EGRESS_CONFIG_FILE="${EGRESS_CONFIG}"
 exec /tini -- egress
