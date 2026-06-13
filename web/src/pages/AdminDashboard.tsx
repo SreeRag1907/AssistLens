@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { adminListSessions, adminEndSession, getAdminToken, clearAdminToken } from '../lib/api';
+import { adminListSessions, adminEndSession, getAdminToken, ApiError } from '../lib/api';
+import { signOutAdmin, useAuthVersion, useSignOutPending } from '../lib/auth';
 import type { SessionSummary } from '../lib/types';
 import { Button, Card, StatusBadge, ThemeToggle, btnClass, AppHeader, PageMain, EmptyState, Spinner } from '../components/ui';
 
@@ -24,8 +25,10 @@ function fmt(iso: string) {
 }
 
 export function AdminDashboard() {
+  useAuthVersion();
+  const signingOut = useSignOutPending();
   const navigate = useNavigate();
-  const token = getAdminToken()!;
+  const token = getAdminToken();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,16 +40,21 @@ export function AdminDashboard() {
   const hasLive = live.length > 0;
 
   const load = useCallback(async () => {
+    if (!token) return;
     try {
       const data = await adminListSessions(token);
       setSessions(data.sessions);
       setError('');
     } catch (e: unknown) {
+      if (e instanceof ApiError && e.status === 401) {
+        signOutAdmin(navigate);
+        return;
+      }
       setError(e instanceof Error ? e.message : 'Failed to load sessions.');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, navigate]);
 
   useEffect(() => {
     load();
@@ -64,6 +72,7 @@ export function AdminDashboard() {
 
   const handleEnd = useCallback(
     async (id: string) => {
+      if (!token) return;
       if (!confirm('End this session? Participants will be disconnected.')) return;
       setEnding(id);
       try {
@@ -94,10 +103,8 @@ export function AdminDashboard() {
             )}
             <button
               type="button"
-              onClick={() => {
-                clearAdminToken();
-                navigate('/admin/login');
-              }}
+              onClick={() => signOutAdmin(navigate)}
+              disabled={!!signingOut}
               className={btnClass('ghost', 'text-sm')}
             >
               Sign out

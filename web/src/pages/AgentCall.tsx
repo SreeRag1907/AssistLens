@@ -10,10 +10,12 @@ import {
   ApiError,
 } from '../lib/api';
 import type { AgentTokenInfo } from '../lib/types';
+import { useAuthVersion } from '../lib/auth';
 import { CallStage } from '../components/CallStage';
 import { btnClass } from '../components/ui';
 
 export function AgentCall() {
+  useAuthVersion();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const token = getAgentToken();
@@ -33,14 +35,11 @@ export function AgentCall() {
   }, [token, id]);
 
   useEffect(() => {
-    if (!token) {
-      navigate('/');
-      return;
-    }
+    if (!token) return;
     refreshTokens().catch((err) => {
       setError(err instanceof ApiError ? err.message : 'Could not join the call.');
     });
-  }, [token, id, navigate, refreshTokens]);
+  }, [token, id, refreshTokens]);
 
   // Re-check Egress while in call (Docker may start after join; don't remount CallStage).
   useEffect(() => {

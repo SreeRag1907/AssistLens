@@ -11,6 +11,24 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
+type AuthListener = () => void;
+const authListeners = new Set<AuthListener>();
+let authVersion = 0;
+
+export function subscribeAuth(listener: AuthListener): () => void {
+  authListeners.add(listener);
+  return () => authListeners.delete(listener);
+}
+
+export function getAuthVersion(): number {
+  return authVersion;
+}
+
+function notifyAuthChange(): void {
+  authVersion += 1;
+  authListeners.forEach((l) => l());
+}
+
 const TOKEN_KEY = 'assistlens.agent.token';
 const AGENT_EMAIL_KEY = 'assistlens.agent.email';
 const ADMIN_TOKEN_KEY = 'assistlens.admin.token';
@@ -24,10 +42,12 @@ export function getAgentEmail(): string | null {
 export function setAgentToken(token: string, email?: string): void {
   localStorage.setItem(TOKEN_KEY, token);
   if (email) localStorage.setItem(AGENT_EMAIL_KEY, email);
+  notifyAuthChange();
 }
 export function clearAgentToken(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(AGENT_EMAIL_KEY);
+  notifyAuthChange();
 }
 
 export function getAdminToken(): string | null {
@@ -35,9 +55,11 @@ export function getAdminToken(): string | null {
 }
 export function setAdminToken(token: string): void {
   localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  notifyAuthChange();
 }
 export function clearAdminToken(): void {
   localStorage.removeItem(ADMIN_TOKEN_KEY);
+  notifyAuthChange();
 }
 
 export class ApiError extends Error {

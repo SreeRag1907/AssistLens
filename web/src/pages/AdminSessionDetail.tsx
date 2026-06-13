@@ -7,9 +7,9 @@ import {
   adminGetSessionDetail,
   adminListRecordings,
   ApiError,
-  clearAdminToken,
   getAdminToken,
 } from '../lib/api';
+import { signOutAdmin, useSignOutPending } from '../lib/auth';
 import type { ChatFile, ChatMessage, EventRecord, ParticipantRecord, RecordingRecord, SessionSummary } from '../lib/types';
 import {
   AppHeader,
@@ -52,6 +52,7 @@ function eventLabel(type: string): string {
 export function AdminSessionDetail() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const signingOut = useSignOutPending();
   const token = getAdminToken();
   const [session, setSession] = useState<SessionSummary | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
@@ -199,10 +200,8 @@ export function AdminSessionDetail() {
             )}
             <button
               type="button"
-              onClick={() => {
-                clearAdminToken();
-                navigate('/admin/login');
-              }}
+              onClick={() => signOutAdmin(navigate)}
+              disabled={!!signingOut}
               className={btnClass('ghost', 'text-sm')}
             >
               Sign out

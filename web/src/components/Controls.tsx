@@ -8,6 +8,7 @@ interface Props {
   onFlipCamera?: () => void;
   onLeave: () => void;
   leaveLabel: string;
+  leaveDisabled?: boolean;
   onToggleRecording?: () => void;
   recording?: boolean;
   recordingBusy?: boolean;
@@ -68,6 +69,7 @@ export function Controls({
   onFlipCamera,
   onLeave,
   leaveLabel,
+  leaveDisabled,
   onToggleRecording,
   recording,
   recordingBusy,
@@ -140,7 +142,7 @@ export function Controls({
           </IconButton>
         )}
 
-        <IconButton onClick={onLeave} label={leaveLabel} danger>
+        <IconButton onClick={onLeave} label={leaveLabel} danger disabled={leaveDisabled}>
           <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-6 sm:w-6" fill="currentColor" aria-hidden>
             <path d="M21 15.5c-1.2 0-2.5-.2-3.6-.6a1 1 0 0 0-1 .2l-2.2 2.2a15 15 0 0 1-6.6-6.6l2.2-2.2a1 1 0 0 0 .2-1C9.7 6.5 9.5 5.2 9.5 4a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1A17 17 0 0 0 21 21a1 1 0 0 0 1-1v-3.5a1 1 0 0 0-1-1Z" />
           </svg>

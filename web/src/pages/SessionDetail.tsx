@@ -10,6 +10,7 @@ import {
   ApiError,
 } from '../lib/api';
 import type { ChatFile, ChatMessage, EventRecord, ParticipantRecord, RecordingRecord, SessionSummary } from '../lib/types';
+import { signOutAgent, useAuthVersion, useSignOutPending } from '../lib/auth';
 import { btnClass, Button, Card, StatusBadge, ThemeToggle, AppHeader, PageMain, Spinner } from '../components/ui';
 import { ShareDialog } from '../components/ShareDialog';
 
@@ -23,6 +24,8 @@ function dur(a: string, b: string | null): string {
 }
 
 export function SessionDetail() {
+  useAuthVersion();
+  const signingOut = useSignOutPending();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const token = getAgentToken();
@@ -73,10 +76,7 @@ export function SessionDetail() {
   }
 
   useEffect(() => {
-    if (!token) {
-      navigate('/');
-      return;
-    }
+    if (!token) return;
     setLoading(true);
     (async () => {
       try {
@@ -184,6 +184,14 @@ export function SessionDetail() {
         actions={
           <>
             <ThemeToggle />
+            <button
+              type="button"
+              onClick={() => signOutAgent(navigate)}
+              disabled={!!signingOut}
+              className={btnClass('ghost', 'text-sm')}
+            >
+              Sign out
+            </button>
             {session?.status === 'active' && (
               <>
                 <Button variant="secondary" onClick={openShare}>Share</Button>

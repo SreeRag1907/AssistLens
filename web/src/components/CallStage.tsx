@@ -51,6 +51,7 @@ export function CallStage(props: Props) {
   const [recordingSecs, setRecordingSecs] = useState(0);
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [rejoining, setRejoining] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const canFlipCamera = useCanFlipCamera();
   const [leftVoluntarily, setLeftVoluntarily] = useState(false);
 
@@ -236,25 +237,31 @@ export function CallStage(props: Props) {
   );
 
   const leave = useCallback(async () => {
+    if (leaving) return;
+    setLeaving(true);
     setLeftVoluntarily(true);
-    if (role === 'agent') {
-      if (recording) {
-        endRecordingUi(true);
-        if (props.onStopRecording) {
-          try {
-            await props.onStopRecording(recordingId);
-          } catch {
-            /* session end also stops recording server-side */
-          }
-        }
-      }
-      if (props.onEndSession) {
-        await props.onEndSession();
-      }
-    }
+
     room.disconnect();
+
+    if (role === 'agent') {
+      void (async () => {
+        try {
+          if (recording && props.onStopRecording) {
+            await props.onStopRecording(recordingId);
+          }
+        } catch {
+          /* session end also stops recording server-side */
+        }
+        try {
+          await props.onEndSession?.();
+        } catch {
+          /* best-effort cleanup */
+        }
+      })();
+    }
+
     props.onLeft();
-  }, [role, recording, room, props, endRecordingUi]);
+  }, [role, recording, recordingId, room, props, leaving]);
 
   const handleRejoin = useCallback(async () => {
     if (!props.onRejoin) return;
@@ -400,7 +407,8 @@ export function CallStage(props: Props) {
             onToggleCamera={room.toggleCamera}
             onFlipCamera={canFlipCamera ? room.flipCamera : undefined}
             onLeave={leave}
-            leaveLabel={role === 'agent' ? 'End' : 'Leave'}
+            leaveLabel={leaving ? 'Leaving…' : role === 'agent' ? 'End' : 'Leave'}
+            leaveDisabled={leaving}
             onToggleChat={() => setChatOpen((o) => !o)}
             unreadCount={unread}
             onToggleRecording={showRecord ? toggleRecording : undefined}

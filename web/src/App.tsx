@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { getAdminToken, getAgentToken } from './lib/api';
+import { useAuthVersion, useSignOutPending } from './lib/auth';
+import { SignOutOverlay } from './components/SignOutOverlay';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { AdminLogin } from './pages/AdminLogin';
@@ -19,8 +21,12 @@ function RequireAdmin({ children }: { children: JSX.Element }) {
 }
 
 export default function App() {
+  useAuthVersion();
+  const signOutPending = useSignOutPending();
+
   return (
-    <Routes>
+    <>
+      <Routes>
       <Route path="/" element={getAgentToken() ? <Navigate to="/agent" replace /> : <Login />} />
       <Route path="/register" element={getAgentToken() ? <Navigate to="/agent" replace /> : <Register />} />
       <Route path="/admin/login" element={getAdminToken() ? <Navigate to="/admin" replace /> : <AdminLogin />} />
@@ -67,6 +73,10 @@ export default function App() {
       <Route path="/j/:code" element={<CustomerJoin />} />
       <Route path="/join" element={<CustomerJoin />} />
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+      {signOutPending && (
+        <SignOutOverlay label={signOutPending === 'admin' ? 'Signing out of admin…' : 'Signing out…'} />
+      )}
+    </>
   );
 }

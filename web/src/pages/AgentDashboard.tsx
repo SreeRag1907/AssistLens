@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  clearAgentToken,
   createSession,
   endSession,
   getAgentEmail,
@@ -10,6 +9,7 @@ import {
   listSessions,
   ApiError,
 } from '../lib/api';
+import { signOutAgent, useAuthVersion, useSignOutPending } from '../lib/auth';
 import type { SessionSummary } from '../lib/types';
 import {
   AppHeader,
@@ -49,6 +49,8 @@ interface ShareState {
 }
 
 export function AgentDashboard() {
+  useAuthVersion();
+  const signingOut = useSignOutPending();
   const navigate = useNavigate();
   const token = getAgentToken();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -64,8 +66,7 @@ export function AgentDashboard() {
       setSessions(res.sessions);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        clearAgentToken();
-        navigate('/');
+        signOutAgent(navigate);
       }
     }
   }, [token, navigate]);
@@ -73,12 +74,9 @@ export function AgentDashboard() {
   const hasLive = sessions.some((s) => s.status === 'active');
 
   useEffect(() => {
-    if (!token) {
-      navigate('/');
-      return;
-    }
+    if (!token) return;
     refresh();
-  }, [token, navigate, refresh]);
+  }, [token, refresh]);
 
   useEffect(() => {
     if (!token) return;
@@ -140,8 +138,7 @@ export function AgentDashboard() {
   }
 
   function logout() {
-    clearAgentToken();
-    navigate('/');
+    signOutAgent(navigate);
   }
 
   const live = sessions.filter((s) => s.status === 'active');
@@ -154,7 +151,12 @@ export function AgentDashboard() {
         actions={
           <>
             <ThemeToggle />
-            <button onClick={logout} className={btnClass('ghost', 'text-sm')}>
+            <button
+              type="button"
+              onClick={logout}
+              disabled={!!signingOut}
+              className={btnClass('ghost', 'text-sm')}
+            >
               Sign out
             </button>
           </>
