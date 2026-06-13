@@ -35,3 +35,12 @@ export function CameraOffIcon({ className = 'h-5 w-5 sm:h-6 sm:w-6' }: IconProps
     </svg>
   );
 }
+
+/** Front/back camera toggle (Material "cameraswitch" style). */
+export function CameraFlipIcon({ className = 'h-5 w-5 sm:h-6 sm:w-6' }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+      <path d="M16 7h3v3h-2V8h-2.5A5.5 5.5 0 0 0 9 13.5V15H7v-1.5A7.5 7.5 0 0 1 16.5 7H16zM8 17H5v-3h2v2h2.5A5.5 5.5 0 0 0 15 10.5V9h2v1.5A7.5 7.5 0 0 1 7.5 17H8z" />
+    </svg>
+  );
+}

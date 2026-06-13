@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMobileCameraDevice } from '../lib/useMobileDevice';
 import { Button, Field, Select } from './ui';
-import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon } from './MediaIcons';
+import { CameraFlipIcon, CameraIcon, CameraOffIcon, MicIcon, MicOffIcon } from './MediaIcons';
 
 export interface MediaPrefs {
   micEnabled: boolean;
@@ -29,6 +30,7 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
   const [videoId, setVideoId] = useState('');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [permError, setPermError] = useState<string | null>(null);
+  const isMobileCamera = useMobileCameraDevice();
 
   const startPreview = useCallback(async (audio?: string, video?: string, facing?: 'user' | 'environment') => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -146,11 +148,11 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
             label={camOn ? 'Turn off camera' : 'Turn on camera'}
             kind="cam"
           />
-          {camOn && (
+          {camOn && isMobileCamera && (
             <MediaToggle
               active
               onClick={flipCamera}
-              label="Switch camera (front/back)"
+              label="Switch camera"
               kind="flip"
             />
           )}
@@ -230,9 +232,7 @@ function MediaToggle({
       {kind === 'mic' ? (
         active ? <MicIcon className="h-5 w-5" /> : <MicOffIcon className="h-5 w-5" />
       ) : kind === 'flip' ? (
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-          <path d="M7 8h10l-2-2m2 2-2 2 2M17 16H7l2 2m-2-2 2-2-2-2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        <CameraFlipIcon className="h-5 w-5" />
       ) : active ? (
         <CameraIcon className="h-5 w-5" />
       ) : (

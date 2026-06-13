@@ -49,7 +49,7 @@ export function ParticipantView({ participant, isLocal, label, tick, pip = false
         autoPlay
         playsInline
         muted={isLocal}
-        className={`h-full w-full ${isLocal ? 'object-contain' : 'object-cover'} ${cameraOn ? '' : 'hidden'} ${isLocal ? 'scale-x-[-1]' : ''}`}
+        className={`h-full w-full object-contain bg-black ${cameraOn ? '' : 'hidden'} ${isLocal ? 'scale-x-[-1]' : ''}`}
       />
       {!isLocal && <audio ref={audioRef} autoPlay />}
 

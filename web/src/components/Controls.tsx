@@ -1,4 +1,4 @@
-import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon } from './MediaIcons';
+import { CameraIcon, CameraFlipIcon, CameraOffIcon, MicIcon, MicOffIcon } from './MediaIcons';
 
 interface Props {
   micEnabled: boolean;
@@ -103,11 +103,8 @@ export function Controls({
         </IconButton>
 
         {onFlipCamera && cameraEnabled && (
-          <IconButton onClick={onFlipCamera} label="Switch camera (front/back)" active>
-            <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M7 8h10l-2-2m2 2-2 2 2M17 16H7l2 2m-2-2 2-2-2-2" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
+          <IconButton onClick={onFlipCamera} label="Switch camera" active>
+            <CameraFlipIcon />
           </IconButton>
         )}
 
