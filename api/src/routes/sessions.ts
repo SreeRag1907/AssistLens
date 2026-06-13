@@ -5,6 +5,7 @@ import { query } from '../db.js';
 import { config } from '../config.js';
 import { requireAgent } from '../guards.js';
 import { closeAllParticipants } from '../presence.js';
+import { registerParticipantJoin } from '../participants.js';
 import { isRecordingAvailable, mintAccessToken, closeRoom, startRoomRecording, stopRecording } from '../livekit.js';
 import { reconcileStaleRecordings } from '../recordings.js';
 import { generateInviteCode, inviteUrl, backfillInviteCodes } from '../inviteCode.js';
@@ -202,6 +203,8 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       name: agent.email,
       role: 'agent',
     });
+
+    await registerParticipantJoin(session.id, 'agent', agent.identity, agent.email);
 
     const [activeRec, recordingAvailable] = await Promise.all([
       query<RecordingRow>(

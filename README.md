@@ -266,8 +266,7 @@ Web (optional, production):
 | **Web** | Vercel | Build `web/`, set `VITE_API_BASE` |
 | **API** | Railway / Render | Deploy `api/` via Dockerfile; set all env vars |
 | **Postgres** | Supabase | Connection string in `DATABASE_URL` |
-| **LiveKit** | Railway / Fly / VPS | Self-hosted container; on Railway add TCP proxy for 7882 (see [`infra/livekit-railway/README.md`](infra/livekit-railway/README.md)) |
-| **MinIO + Egress** | Same host or separate | Required for recording and file uploads |
+| **LiveKit + MinIO + Egress** | Railway | See [`infra/railway/README.md`](infra/railway/README.md) — TCP proxy 7882 required for video |
 
 **HTTPS is required** for camera/microphone (`getUserMedia`) and secure WebSocket (`wss://`). Vercel/Railway/Render provide TLS automatically.
 

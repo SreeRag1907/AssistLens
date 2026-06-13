@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { signInviteToken, verifyInviteToken } from '../auth.js';
 import { mintAccessToken } from '../livekit.js';
 import { hasOpenParticipant } from '../presence.js';
+import { registerParticipantJoin } from '../participants.js';
 import type { SessionRow, RecordingRow } from '../types.js';
 
 const joinSchema = z.object({
@@ -24,6 +25,8 @@ async function sessionByCode(code: string): Promise<SessionRow | null> {
 async function buildJoinResponse(session: SessionRow, displayName: string) {
   const identity = `customer-${session.id}`;
   const duplicate = await hasOpenParticipant(session.id, identity);
+
+  await registerParticipantJoin(session.id, 'customer', identity, displayName);
 
   const livekitToken = await mintAccessToken({
     room: session.room_name,

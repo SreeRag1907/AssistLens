@@ -216,7 +216,7 @@ export function CallStage(props: Props) {
         setFiles((prev) => [...prev, res.file]);
         room.sendData({ type: 'file', file: res.file });
       } catch (err) {
-        alert(err instanceof ApiError ? err.message : 'Upload failed. Is MinIO running?');
+        alert(err instanceof ApiError ? err.message : 'Upload failed. Is file storage (S3/R2) configured on the API?');
       } finally {
         setUploading(false);
       }

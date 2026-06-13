@@ -85,6 +85,31 @@ else
   USE_EXTERNAL_IP="true"
 fi
 
+REDIS_YAML=""
+if [ -n "${REDIS_URL:-}" ]; then
+  REDIS_PASSWORD=$(echo "$REDIS_URL" | sed -n 's|redis://[^:]*:\([^@]*\)@.*|\1|p')
+  REDIS_ADDRESS=$(echo "$REDIS_URL" | sed -n 's|redis://[^@]*@\(.*\)|\1|p')
+  if [ -z "$REDIS_ADDRESS" ]; then
+    REDIS_ADDRESS=$(echo "$REDIS_URL" | sed -n 's|redis://\(.*\)|\1|p')
+    REDIS_PASSWORD=""
+  fi
+  echo "Redis enabled: ${REDIS_ADDRESS} (required for Egress recording)"
+  REDIS_YAML="redis:
+  address: ${REDIS_ADDRESS}"
+  if [ -n "$REDIS_PASSWORD" ]; then
+    REDIS_YAML="${REDIS_YAML}
+  password: ${REDIS_PASSWORD}"
+  fi
+elif [ -n "${REDIS_ADDRESS:-}" ]; then
+  echo "Redis enabled: ${REDIS_ADDRESS}"
+  REDIS_YAML="redis:
+  address: ${REDIS_ADDRESS}"
+  if [ -n "${REDIS_PASSWORD:-}" ]; then
+    REDIS_YAML="${REDIS_YAML}
+  password: ${REDIS_PASSWORD}"
+  fi
+fi
+
 cat > /etc/livekit.yaml <<EOF
 port: ${SIGNAL_PORT}
 bind_addresses:
@@ -102,6 +127,8 @@ rtc:
 turn:
   enabled: ${TURN_ENABLED}
   udp_port: 7882
+
+${REDIS_YAML}
 
 webhook:
   api_key: ${WEBHOOK_API_KEY}

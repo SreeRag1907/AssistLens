@@ -60,7 +60,8 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       req.log.error({ err }, 'file upload to S3 failed');
       return reply.code(503).send({
         error: 'storage_unavailable',
-        message: 'File storage is not available. Make sure MinIO is running (docker compose up).',
+        message:
+          'File storage is not configured. Set S3_* env vars on the API (Cloudflare R2 or MinIO locally).',
       });
     }
 
