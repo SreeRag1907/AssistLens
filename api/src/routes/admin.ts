@@ -39,7 +39,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const { id } = req.params as { id: string };
 
     const res = await query<ParticipantRow>(
-      'SELECT * FROM participants WHERE session_id = $1 ORDER BY joined_at ASC',
+      'SELECT * FROM participants WHERE session_id = $1 AND identity NOT LIKE \'EG_%\' ORDER BY joined_at ASC',
       [id],
     );
     return { participants: res.rows };
@@ -53,7 +53,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
     const [participants, events] = await Promise.all([
       query<ParticipantRow>(
-        'SELECT * FROM participants WHERE session_id = $1 ORDER BY joined_at ASC',
+        'SELECT * FROM participants WHERE session_id = $1 AND identity NOT LIKE \'EG_%\' ORDER BY joined_at ASC',
         [id],
       ),
       query<EventRow>(

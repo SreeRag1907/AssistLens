@@ -16,6 +16,11 @@ function roleFromIdentity(identity: string): Role {
   return identity.startsWith('agent') ? 'agent' : 'customer';
 }
 
+/** LiveKit Egress joins the room as EG_* to capture video — not a human participant. */
+function isEgressBot(identity: string): boolean {
+  return identity.startsWith('EG_');
+}
+
 async function sessionByRoom(room: string): Promise<SessionRow | null> {
   const res = await query<SessionRow>('SELECT * FROM sessions WHERE room_name = $1', [room]);
   return res.rows[0] ?? null;
@@ -54,7 +59,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     try {
       switch (event.event) {
         case 'participant_joined': {
-          if (!roomName || !identity) break;
+          if (!roomName || !identity || isEgressBot(identity)) break;
           const session = await sessionByRoom(roomName);
           if (!session) break;
           const role = roleFromIdentity(identity);
@@ -79,7 +84,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
         }
 
         case 'participant_left': {
-          if (!roomName || !identity) break;
+          if (!roomName || !identity || isEgressBot(identity)) break;
           const session = await sessionByRoom(roomName);
           if (!session) break;
           // Stamp the drop and open the grace window (the timer lives in the row).

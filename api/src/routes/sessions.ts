@@ -136,7 +136,10 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     await reconcileStaleRecordings(id);
 
     const [participants, events, recordings, messages, chatFiles] = await Promise.all([
-      query<ParticipantRow>('SELECT * FROM participants WHERE session_id = $1 ORDER BY joined_at', [id]),
+      query<ParticipantRow>(
+        `SELECT * FROM participants WHERE session_id = $1 AND identity NOT LIKE 'EG_%' ORDER BY joined_at`,
+        [id],
+      ),
       query<EventRow>(
         `SELECT * FROM (
            SELECT * FROM events WHERE session_id = $1 ORDER BY created_at DESC LIMIT 200
