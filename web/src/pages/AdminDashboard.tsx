@@ -1,14 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  adminListSessions,
-  adminGetSessionDetail,
-  adminEndSession,
-  getAdminToken,
-  clearAdminToken,
-} from '../lib/api';
-import type { EventRecord, ParticipantRecord, SessionSummary } from '../lib/types';
-import { Button, Card, Logo, StatusBadge, ThemeToggle, btnClass } from '../components/ui';
+import { Link, useNavigate } from 'react-router-dom';
+import { adminListSessions, adminEndSession, getAdminToken, clearAdminToken } from '../lib/api';
+import type { SessionSummary } from '../lib/types';
+import { Button, Card, StatusBadge, ThemeToggle, btnClass, AppHeader, PageMain, EmptyState, Spinner } from '../components/ui';
 
 function duration(start: string, end: string | null): string {
   const ms = (end ? new Date(end) : new Date()).getTime() - new Date(start).getTime();
@@ -29,29 +23,6 @@ function fmt(iso: string) {
   });
 }
 
-function eventLabel(type: string): string {
-  const map: Record<string, string> = {
-    session_created: 'Session created',
-    session_ended: 'Session ended',
-    joined: 'Participant joined',
-    disconnected: 'Participant disconnected',
-    reconnected: 'Participant reconnected',
-    recording_started: 'Recording started',
-    recording_stopped: 'Recording stopped',
-    recording_ready: 'Recording ready',
-    recording_failed: 'Recording failed',
-    room_finished: 'Room closed',
-    duplicate_join: 'Duplicate join ignored',
-  };
-  return map[type] ?? type;
-}
-
-interface ExpandedState {
-  participants: ParticipantRecord[] | null;
-  events: EventRecord[] | null;
-  loading: boolean;
-}
-
 export function AdminDashboard() {
   const navigate = useNavigate();
   const token = getAdminToken()!;
@@ -59,7 +30,6 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [ending, setEnding] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Record<string, ExpandedState>>({});
   const [filter, setFilter] = useState<'all' | 'active' | 'ended'>('all');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -92,37 +62,6 @@ export function AdminDashboard() {
     };
   }, [load, hasLive]);
 
-  const toggleExpand = useCallback(
-    async (id: string) => {
-      if (expanded[id]) {
-        setExpanded((prev) => {
-          const next = { ...prev };
-          delete next[id];
-          return next;
-        });
-        return;
-      }
-      setExpanded((prev) => ({ ...prev, [id]: { participants: null, events: null, loading: true } }));
-      try {
-        const detail = await adminGetSessionDetail(token, id);
-        setExpanded((prev) => ({
-          ...prev,
-          [id]: {
-            participants: detail.participants,
-            events: detail.events,
-            loading: false,
-          },
-        }));
-      } catch {
-        setExpanded((prev) => ({
-          ...prev,
-          [id]: { participants: [], events: [], loading: false },
-        }));
-      }
-    },
-    [expanded, token],
-  );
-
   const handleEnd = useCallback(
     async (id: string) => {
       if (!confirm('End this session? Participants will be disconnected.')) return;
@@ -143,58 +82,67 @@ export function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-bg text-fg">
-      {/* Top bar */}
-      <header className="sticky top-0 z-20 border-b border-line bg-bg/80 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
-          <Logo size={30} />
-          <div className="flex-1">
-            <span className="text-sm font-semibold text-fg">Admin Dashboard</span>
-            <span className="ml-2 text-xs text-muted">Operations — all agents & sessions</span>
-          </div>
-          {live.length > 0 && (
-            <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-500 ring-1 ring-emerald-500/25">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-              {live.length} live
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              clearAdminToken();
-              navigate('/admin/login');
-            }}
-            className={btnClass('ghost', 'text-sm')}
-          >
-            Sign out
-          </button>
-          <ThemeToggle />
+      <AppHeader
+        actions={
+          <>
+            {live.length > 0 && (
+              <span className="flex items-center gap-1.5 rounded-md border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
+                {live.length} live
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                clearAdminToken();
+                navigate('/admin/login');
+              }}
+              className={btnClass('ghost', 'text-sm')}
+            >
+              Sign out
+            </button>
+            <ThemeToggle />
+          </>
+        }
+      >
+        <div className="hidden sm:block border-l border-line pl-4">
+          <p className="text-sm font-bold text-fg">Operations</p>
+          <p className="text-xs text-muted">All agents & sessions</p>
         </div>
-      </header>
+      </AppHeader>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 space-y-6">
-        {/* Stats row */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <PageMain className="max-w-6xl space-y-8">
+        <div>
+          <p className="section-label">Overview</p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Admin dashboard</h1>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            { label: 'Total Sessions', value: sessions.length },
-            { label: 'Live Now', value: live.length },
-            { label: 'Live Participants', value: live.reduce((a, s) => a + Number(s.participant_count ?? 0), 0) },
-            { label: 'Ended Today', value: sessions.filter((s) => s.status === 'ended' && s.ended_at && new Date(s.ended_at) > new Date(Date.now() - 86400000)).length },
+            { label: 'Total sessions', value: sessions.length },
+            { label: 'Live now', value: live.length },
+            { label: 'Live participants', value: live.reduce((a, s) => a + Number(s.participant_count ?? 0), 0) },
+            {
+              label: 'Ended today',
+              value: sessions.filter(
+                (s) => s.status === 'ended' && s.ended_at && new Date(s.ended_at) > new Date(Date.now() - 86400000),
+              ).length,
+            },
           ].map((stat) => (
-            <Card key={stat.label} className="px-5 py-4">
-              <p className="text-2xl font-bold text-fg">{stat.value}</p>
-              <p className="mt-0.5 text-xs text-muted">{stat.label}</p>
+            <Card key={stat.label} className="px-4 py-3">
+              <p className="text-2xl font-extrabold tabular-nums text-fg">{stat.value}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted">{stat.label}</p>
             </Card>
           ))}
         </div>
 
-        {/* Filter tabs */}
-        <div className="flex gap-1 rounded-xl border border-line bg-surface p-1 w-fit">
+        <div className="flex gap-1 rounded-lg border border-line bg-surface-2 p-1 w-fit">
           {(['all', 'active', 'ended'] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition ${
-                filter === f ? 'bg-brand text-brand-fg shadow-glow' : 'text-muted hover:text-fg'
+              className={`rounded-md px-3.5 py-1.5 text-sm font-semibold transition ${
+                filter === f ? 'bg-surface text-fg shadow-card border border-line' : 'text-muted hover:text-fg'
               }`}
             >
               {f === 'all' ? 'All' : f === 'active' ? 'Live' : 'Ended'}
@@ -203,135 +151,65 @@ export function AdminDashboard() {
         </div>
 
         {loading && (
-          <p className="text-center text-muted py-16 text-sm">Loading sessions…</p>
+          <div className="flex justify-center py-16">
+            <Spinner />
+          </div>
         )}
         {error && (
-          <Card className="p-4 border-red-500/30 bg-red-500/5">
-            <p className="text-sm text-red-400">{error}</p>
+          <Card className="border-red-500/30 bg-red-500/5 p-4">
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
           </Card>
         )}
 
-        {/* Session table */}
-        {!loading && filtered.length === 0 && (
-          <p className="text-center text-muted py-16 text-sm">No sessions to show.</p>
-        )}
+        {!loading && filtered.length === 0 && <EmptyState>No sessions to show.</EmptyState>}
 
-        <div className="space-y-3">
-          {filtered.map((session) => {
-            const exp = expanded[session.id];
-            return (
-              <Card key={session.id} className="overflow-hidden">
-                {/* Session row */}
-                <div className="flex flex-wrap items-center gap-3 px-5 py-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <StatusBadge status={session.status === 'active' ? 'live' : 'ended'} />
-                      <span className="font-semibold text-sm text-fg truncate">
-                        {session.title ?? 'Untitled Session'}
-                      </span>
-                      <span className="text-xs text-muted bg-surface-2 rounded-md px-2 py-0.5">
-                        {session.agent_email ?? 'Agent'}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted">
-                      <span>Started {fmt(session.created_at)}</span>
-                      <span>Duration: {duration(session.created_at, session.ended_at)}</span>
-                      <span>
-                        {Number(session.participant_count ?? 0)} participant{Number(session.participant_count ?? 0) !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => toggleExpand(session.id)}
-                      className={btnClass('secondary', 'text-xs px-3 py-1.5')}
+        <div className="space-y-2">
+          {filtered.map((session) => (
+            <Card key={session.id} className="overflow-hidden">
+              <div className="flex flex-wrap items-center gap-3 px-5 py-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <StatusBadge status={session.status === 'active' ? 'live' : 'ended'} />
+                    <Link
+                      to={`/admin/sessions/${session.id}`}
+                      className="font-semibold text-sm text-fg truncate hover:text-brand transition-colors"
                     >
-                      {exp ? 'Hide' : 'Expand'}
-                    </button>
-                    {session.status === 'active' && (
-                      <Button
-                        variant="danger"
-                        className="text-xs px-3 py-1.5"
-                        disabled={ending === session.id}
-                        onClick={() => handleEnd(session.id)}
-                      >
-                        {ending === session.id ? 'Ending…' : 'End Session'}
-                      </Button>
-                    )}
+                      {session.title ?? 'Untitled session'}
+                    </Link>
+                    <span className="text-xs text-muted bg-surface-2 rounded-md px-2 py-0.5">
+                      {session.agent_email ?? 'Agent'}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted">
+                    <span>Started {fmt(session.created_at)}</span>
+                    <span>Duration: {duration(session.created_at, session.ended_at)}</span>
+                    <span>
+                      {Number(session.participant_count ?? 0)} participant
+                      {Number(session.participant_count ?? 0) !== 1 ? 's' : ''}
+                    </span>
                   </div>
                 </div>
 
-                {/* Expanded detail */}
-                {exp && (
-                  <div className="border-t border-line px-5 py-4 bg-bg/40 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {exp.loading ? (
-                      <p className="text-xs text-muted col-span-2">Loading…</p>
-                    ) : (
-                      <>
-                        {/* Participants */}
-                        <div>
-                          <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                            Participants
-                          </p>
-                          {(exp.participants ?? []).length === 0 ? (
-                            <p className="text-xs text-muted">No participants yet.</p>
-                          ) : (
-                            <div className="space-y-1.5">
-                              {(exp.participants ?? []).map((p) => (
-                                <div key={p.id} className="flex items-center gap-2 text-xs">
-                                  <span
-                                    className={`h-2 w-2 rounded-full flex-shrink-0 ${p.left_at ? 'bg-line' : 'bg-emerald-500'}`}
-                                  />
-                                  <span className="font-medium text-fg">
-                                    {p.display_name ?? p.identity}
-                                  </span>
-                                  <span className="text-muted capitalize">{p.role}</span>
-                                  <span className="text-muted ml-auto">
-                                    {p.left_at ? `Left ${fmt(p.left_at)}` : `Joined ${fmt(p.joined_at)}`}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Event log */}
-                        <div>
-                          <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">
-                            Event Log
-                          </p>
-                          {(exp.events ?? []).length === 0 ? (
-                            <p className="text-xs text-muted">No events recorded.</p>
-                          ) : (
-                            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                              {(exp.events ?? []).map((ev) => (
-                                <div key={ev.id} className="flex items-start gap-2 text-xs">
-                                  <span className="text-muted flex-shrink-0 tabular-nums">
-                                    {new Date(ev.created_at).toLocaleTimeString([], {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                      second: '2-digit',
-                                    })}
-                                  </span>
-                                  <span className="text-fg">{eventLabel(ev.type)}</span>
-                                  {ev.identity && (
-                                    <span className="text-muted ml-auto truncate">{ev.identity}</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Link to={`/admin/sessions/${session.id}`} className={btnClass('secondary', 'text-xs px-3 py-1.5')}>
+                    Full details
+                  </Link>
+                  {session.status === 'active' && (
+                    <Button
+                      variant="danger"
+                      className="text-xs px-3 py-1.5"
+                      disabled={ending === session.id}
+                      onClick={() => handleEnd(session.id)}
+                    >
+                      {ending === session.id ? 'Ending…' : 'End'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+          ))}
         </div>
-      </main>
+      </PageMain>
     </div>
   );
 }

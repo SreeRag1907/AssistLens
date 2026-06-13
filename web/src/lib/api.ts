@@ -205,10 +205,33 @@ export function adminGetEvents(token: string, id: string) {
 }
 
 export function adminGetSessionDetail(token: string, id: string) {
-  return request<{ participants: ParticipantRecord[]; events: EventRecord[] }>(
-    `/admin/sessions/${id}/detail`,
-    { token },
-  );
+  return request<{
+    session: SessionSummary;
+    participants: ParticipantRecord[];
+    events: EventRecord[];
+    recordings: RecordingRecord[];
+    messages: ChatMessage[];
+    files: ChatFile[];
+    invite: { code: string; url: string } | null;
+  }>(`/admin/sessions/${id}/detail`, { token });
+}
+
+export function adminListRecordings(token: string, sessionId: string) {
+  return request<{ recordings: RecordingRecord[] }>(`/admin/sessions/${sessionId}/recordings`, { token });
+}
+
+export async function adminDownloadRecording(token: string, sessionId: string, rid: string, fileName = 'recording.mp4') {
+  const res = await fetch(`${API_BASE}/admin/sessions/${sessionId}/recording/${rid}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await saveBlobDownload(res, fileName);
+}
+
+export async function adminDownloadFile(token: string, sessionId: string, fileId: string, fileName: string) {
+  const res = await fetch(`${API_BASE}/admin/sessions/${sessionId}/files/${fileId}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await saveBlobDownload(res, fileName);
 }
 
 export function adminEndSession(token: string, id: string) {

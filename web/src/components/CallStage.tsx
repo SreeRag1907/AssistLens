@@ -269,17 +269,17 @@ export function CallStage(props: Props) {
   const showRecord = role === 'agent';
 
   return (
-    <div className="relative grid h-[100dvh] w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-slate-950 text-white">
-      <header className="shrink-0 border-b border-white/10">
+    <div className="relative grid h-[100dvh] w-full grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden bg-[#0a0a0c] text-white">
+      <header className="shrink-0 border-b border-white/[0.08]">
         <div className="flex items-center justify-between gap-2 px-4 py-3 text-sm">
           <div className="flex items-center gap-2.5">
-            <div className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand to-brand-strong">
-              <svg viewBox="0 0 24 24" className="h-4 w-4 text-white" fill="none" aria-hidden>
-                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" opacity="0.6" />
-                <circle cx="12" cy="12" r="3.4" fill="currentColor" />
+            <div className="grid h-7 w-7 place-items-center rounded-md bg-brand text-brand-fg">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
+                <circle cx="12" cy="12" r="3" fill="currentColor" />
+                <path d="M12 2v2M12 20v2M2 12h2M20 12h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </div>
-            <span className="font-semibold tracking-tight">AssistLens</span>
+            <span className="font-bold tracking-tight">AssistLens</span>
           </div>
           <div className="flex items-center gap-2">
             {connecting && (
@@ -323,7 +323,7 @@ export function CallStage(props: Props) {
           </div>
         )}
         <div className="mx-auto flex h-full max-w-5xl flex-col">
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border-2 border-white/15 bg-slate-900 shadow-[inset_0_0_60px_rgba(0,0,0,0.35)]">
+          <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-white/[0.1] bg-[#111114]">
             {remotes.length > 0 ? (
               <ParticipantView
                 participant={remotes[0]}
@@ -332,14 +332,11 @@ export function CallStage(props: Props) {
                 tick={room.tick}
               />
             ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950 text-center">
-                <div className="relative mb-5">
-                  <span className="absolute inset-0 animate-ping rounded-full bg-brand/30" />
-                  <div className="relative grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-brand to-brand-strong shadow-glow">
-                    <svg viewBox="0 0 24 24" className="h-8 w-8 text-white" fill="currentColor" aria-hidden>
-                      <path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4Z" />
-                    </svg>
-                  </div>
+              <div className="flex h-full w-full flex-col items-center justify-center bg-[#111114] text-center">
+                <div className="mb-5 grid h-14 w-14 place-items-center rounded-full border border-brand/30 bg-brand/15">
+                  <svg viewBox="0 0 24 24" className="h-7 w-7 text-brand" fill="currentColor" aria-hidden>
+                    <path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4Z" />
+                  </svg>
                 </div>
                 <p className="text-base font-medium text-white/90">
                   {role === 'agent' ? 'Waiting for the customer to join…' : 'Waiting for your agent to join…'}
@@ -373,7 +370,7 @@ export function CallStage(props: Props) {
                       type="button"
                       onClick={handleRejoin}
                       disabled={rejoining}
-                      className="rounded-xl bg-brand px-6 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:bg-brand-strong disabled:opacity-60"
+                      className="rounded-lg bg-brand px-6 py-2.5 text-sm font-semibold text-brand-fg transition hover:bg-brand-strong disabled:opacity-60"
                     >
                       {rejoining ? 'Rejoining…' : 'Rejoin call'}
                     </button>
@@ -393,7 +390,7 @@ export function CallStage(props: Props) {
       </div>
 
       {!dropped && (
-        <footer className="shrink-0 border-t border-white/10 bg-slate-950/95 backdrop-blur-md">
+        <footer className="shrink-0 border-t border-white/[0.08] bg-[#0a0a0c]/95 backdrop-blur-md">
           <Controls
             micEnabled={room.micEnabled}
             cameraEnabled={room.cameraEnabled}

@@ -140,10 +140,10 @@ export function Chat({
                   {senderLabel(m.sender_identity, m.sender_name, m.sender_role)}
                 </span>
                 <div
-                  className={`max-w-[82%] px-3.5 py-2 text-sm shadow-sm ${
+                  className={`max-w-[82%] px-3.5 py-2 text-sm ${
                     mine
-                      ? 'rounded-2xl rounded-br-md bg-gradient-to-br from-brand to-brand-strong text-white'
-                      : 'rounded-2xl rounded-bl-md bg-white/10 text-white'
+                      ? 'rounded-xl rounded-br-sm bg-brand text-brand-fg'
+                      : 'rounded-xl rounded-bl-sm bg-white/10 text-white'
                   }`}
                 >
                   {m.body}
@@ -162,10 +162,10 @@ export function Chat({
               </span>
               <button
                 onClick={() => downloadFile(f.id)}
-                className={`flex max-w-[82%] items-center gap-2.5 rounded-2xl px-3.5 py-2.5 text-left text-sm shadow-sm transition hover:opacity-80 active:scale-[0.98] ${
+                className={`flex max-w-[82%] items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-sm transition hover:opacity-80 active:scale-[0.98] ${
                   mine
-                    ? 'rounded-br-md bg-gradient-to-br from-brand to-brand-strong text-white'
-                    : 'rounded-bl-md bg-white/10 text-white'
+                    ? 'rounded-br-sm bg-brand text-brand-fg'
+                    : 'rounded-bl-sm bg-white/10 text-white'
                 }`}
               >
                 <FileIcon mime={f.content_type} />

@@ -54,9 +54,9 @@ export function ParticipantView({ participant, isLocal, label, tick, pip = false
       {!isLocal && <audio ref={audioRef} autoPlay />}
 
       {!cameraOn && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#141416]">
           <div
-            className={`flex items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-strong font-semibold text-white shadow-glow ${
+            className={`flex items-center justify-center rounded-full bg-brand font-bold text-brand-fg ${
               isLocal ? 'h-12 w-12 text-lg' : 'h-24 w-24 text-4xl'
             }`}
           >

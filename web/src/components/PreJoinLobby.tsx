@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button } from './ui';
+import { Button, Field, Select } from './ui';
 
 export interface MediaPrefs {
   micEnabled: boolean;
@@ -88,17 +88,18 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
   return (
     <div className="w-full max-w-lg animate-fade-in">
       <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-fg">Ready to join?</h1>
-        <p className="mt-1 text-sm text-muted">{sessionTitle}</p>
+        <p className="section-label">Pre-join check</p>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-fg">{sessionTitle}</h1>
+        <p className="mt-1 text-sm text-muted">Test your devices before entering the call.</p>
       </div>
 
-      <div className="relative overflow-hidden rounded-2xl border-2 border-line bg-slate-950 shadow-card aspect-video">
+      <div className="relative overflow-hidden rounded-xl border border-line bg-[#0c0c0e] aspect-video">
         {!camOn && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-900 text-muted">
-            <div className="grid h-20 w-20 place-items-center rounded-full bg-surface-2 text-3xl font-semibold text-fg">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#141416] text-muted">
+            <div className="grid h-16 w-16 place-items-center rounded-full border border-line bg-surface-2 text-2xl font-semibold text-fg">
               {(name.trim() || '?').charAt(0).toUpperCase()}
             </div>
-            <p className="mt-3 text-sm">Camera is off</p>
+            <p className="mt-3 text-sm">Camera off</p>
           </div>
         )}
         <video
@@ -109,14 +110,14 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
           className={`h-full w-full object-cover mirror ${camOn ? '' : 'opacity-0'}`}
         />
         {!micOn && camOn && (
-          <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2.5 py-1 text-xs text-white">
+          <span className="absolute left-3 top-3 rounded-md bg-black/70 px-2 py-1 text-[11px] font-medium text-white">
             Mic off
           </span>
         )}
       </div>
 
       {(permError || error) && (
-        <p className="mt-3 rounded-xl bg-amber-500/10 px-3 py-2 text-sm text-amber-600 ring-1 ring-amber-500/20 dark:text-amber-400">
+        <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
           {permError ?? error}
         </p>
       )}
@@ -138,48 +139,39 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block text-left">
-          <span className="mb-1 block text-xs font-medium text-muted">Microphone</span>
-          <select
-            value={audioId}
-            onChange={(e) => switchDevices(e.target.value, videoId)}
-            className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus:border-brand"
-          >
+          <span className="label">Microphone</span>
+          <Select value={audioId} onChange={(e) => switchDevices(e.target.value, videoId)}>
             <option value="">Default</option>
             {devices.audio.map((d) => (
               <option key={d.deviceId} value={d.deviceId}>
                 {d.label || 'Microphone'}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="block text-left">
-          <span className="mb-1 block text-xs font-medium text-muted">Camera</span>
-          <select
-            value={videoId}
-            onChange={(e) => switchDevices(audioId, e.target.value)}
-            className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-fg outline-none focus:border-brand"
-          >
+          <span className="label">Camera</span>
+          <Select value={videoId} onChange={(e) => switchDevices(audioId, e.target.value)}>
             <option value="">Default</option>
             {devices.video.map((d) => (
               <option key={d.deviceId} value={d.deviceId}>
                 {d.label || 'Camera'}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
 
-      <input
+      <Field
         value={name}
         onChange={(e) => onNameChange(e.target.value)}
         placeholder="Your name (optional)"
-        className="mt-4 w-full rounded-xl border border-line bg-surface px-4 py-3 text-center text-fg placeholder:text-subtle outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30"
+        className="mt-4 text-center"
       />
 
-      <Button onClick={handleJoin} disabled={busy || !!permError} className="mt-4 w-full py-4 text-base">
-        {busy ? 'Joining…' : 'Join now'}
+      <Button onClick={handleJoin} disabled={busy || !!permError} className="mt-4 w-full py-3">
+        {busy ? 'Joining…' : 'Join call'}
       </Button>
-      <p className="mt-3 text-center text-xs text-subtle">Check your camera and mic before entering the call.</p>
 
       <style>{`.mirror { transform: scaleX(-1); }`}</style>
     </div>
@@ -203,10 +195,10 @@ function MediaToggle({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={`grid h-12 w-12 place-items-center rounded-full border transition ${
+      className={`grid h-11 w-11 place-items-center rounded-lg border transition ${
         active
           ? 'border-line bg-surface text-fg hover:bg-surface-2'
-          : 'border-red-500/40 bg-red-500/15 text-red-500'
+          : 'border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400'
       }`}
     >
       {icon === 'mic' && (

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { login, setAgentToken, ApiError } from '../lib/api';
-import { Button, Logo, ThemeToggle } from '../components/ui';
+import { Button, Field, Logo, ThemeToggle } from '../components/ui';
 
 export function Login() {
   const navigate = useNavigate();
@@ -26,91 +26,97 @@ export function Login() {
   }
 
   return (
-    <div className="grid min-h-[100dvh] grid-cols-1 lg:grid-cols-2">
-      {/* Brand panel */}
-      <div className="relative hidden overflow-hidden bg-gradient-to-br from-brand to-brand-strong lg:flex lg:flex-col lg:justify-between lg:p-12">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-black/20 blur-3xl" />
-        <div className="relative">
-          <div className="flex items-center gap-2.5 text-white">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/15">
-              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" aria-hidden>
-                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" opacity="0.6" />
-                <circle cx="12" cy="12" r="3.4" fill="currentColor" />
-              </svg>
-            </div>
-            <span className="text-xl font-bold tracking-tight">AssistLens</span>
-          </div>
-        </div>
-        <div className="relative text-white">
-          <h2 className="max-w-md text-3xl font-bold leading-tight">
-            Help support teams see what customers see.
-          </h2>
-          <p className="mt-4 max-w-md text-white/80">
-            Owned, private, recordable visual support — your customer is on video in seconds, with no app to
-            install.
+    <div className="grid min-h-[100dvh] lg:grid-cols-[1.1fr_1fr]">
+      {/* Editorial panel */}
+      <div className="auth-panel relative hidden flex-col justify-between p-12 text-stone-100 lg:flex">
+        <Logo size={34} />
+        <div className="max-w-md">
+          <p className="section-label text-stone-400">Visual customer support</p>
+          <h1 className="mt-4 text-[2.5rem] font-extrabold leading-[1.1] tracking-tight">
+            See the problem.
+            <br />
+            <span className="text-accent">Solve it faster.</span>
+          </h1>
+          <p className="mt-5 text-base leading-relaxed text-stone-400">
+            Live video sessions with no app install. Share a link, join from any browser, troubleshoot with
+            chat and file sharing — routed through your own infrastructure.
           </p>
+          <ul className="mt-8 space-y-3 text-sm text-stone-300">
+            <li className="flex items-center gap-3">
+              <span className="h-1 w-1 rounded-full bg-accent" />
+              Self-hosted SFU — no third-party video API
+            </li>
+            <li className="flex items-center gap-3">
+              <span className="h-1 w-1 rounded-full bg-accent" />
+              Pre-join device check before every call
+            </li>
+            <li className="flex items-center gap-3">
+              <span className="h-1 w-1 rounded-full bg-accent" />
+              Recording, chat, and file sharing built in
+            </li>
+          </ul>
         </div>
-        <div className="relative text-sm text-white/70">Real-Time Visual Customer Support Platform</div>
+        <p className="text-xs text-stone-500">AssistLens · Real-time support platform</p>
       </div>
 
-      {/* Form panel */}
-      <div className="relative flex items-center justify-center bg-bg px-4 py-10">
-        <div className="absolute right-4 top-4">
+      {/* Sign-in */}
+      <div className="relative flex flex-col bg-bg">
+        <div className="flex items-center justify-between px-5 py-4 lg:justify-end">
+          <div className="lg:hidden">
+            <Logo size={30} withWordmark />
+          </div>
           <ThemeToggle />
         </div>
-        <div className="w-full max-w-sm animate-fade-in">
-          <div className="mb-8 flex flex-col items-center text-center lg:hidden">
-            <Logo size={48} />
-            <h1 className="mt-3 text-2xl font-bold text-fg">AssistLens</h1>
-          </div>
 
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-fg">Welcome back</h1>
-            <p className="mt-1 text-sm text-muted">Sign in to your agent console.</p>
-          </div>
-
-          <form onSubmit={submit} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-fg">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="username"
-                placeholder="agent@assistlens.dev"
-                className="w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-fg placeholder:text-subtle outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30"
-                required
-              />
+        <div className="flex flex-1 items-center justify-center px-5 pb-10">
+          <div className="w-full max-w-[380px] animate-fade-in">
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold tracking-tight text-fg">Agent sign in</h2>
+              <p className="mt-1.5 text-sm text-muted">Access your support console.</p>
             </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-fg">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                placeholder="••••••••"
-                className="w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-fg placeholder:text-subtle outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/30"
-                required
-              />
-            </div>
-            {error && (
-              <p className="rounded-xl bg-red-500/10 px-3.5 py-2.5 text-sm text-red-500 ring-1 ring-red-500/20">
-                {error}
-              </p>
-            )}
-            <Button type="submit" disabled={busy} className="w-full py-3">
-              {busy ? 'Signing in…' : 'Sign in'}
-            </Button>
-          </form>
 
-          <p className="mt-6 text-center text-xs text-subtle">
-            Customers join from a short invite link — no account needed.{' '}
-            <Link to="/admin/login" className="font-medium text-muted hover:text-fg">
-              Admin login →
-            </Link>
-          </p>
+            <form onSubmit={submit} className="space-y-5">
+              <div>
+                <label className="label" htmlFor="email">Email</label>
+                <Field
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
+                  placeholder="you@company.com"
+                  required
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="password">Password</label>
+                <Field
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  placeholder="Enter password"
+                  required
+                />
+              </div>
+              {error && (
+                <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-600 dark:text-red-400">
+                  {error}
+                </p>
+              )}
+              <Button type="submit" disabled={busy} className="w-full py-2.5">
+                {busy ? 'Signing in…' : 'Continue'}
+              </Button>
+            </form>
+
+            <p className="mt-8 text-center text-xs text-subtle">
+              Customers join via invite link — no account required.{' '}
+              <Link to="/admin/login" className="font-semibold text-brand hover:underline">
+                Admin access
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

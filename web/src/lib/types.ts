@@ -6,6 +6,7 @@ export interface SessionSummary {
   agent_email?: string;
   room_name: string;
   title: string | null;
+  invite_code?: string | null;
   status: 'active' | 'ended';
   created_at: string;
   ended_at: string | null;

@@ -39,7 +39,7 @@ function IconButton({
   children: React.ReactNode;
 }) {
   let cls =
-    'relative flex h-12 w-full max-w-[3.25rem] items-center justify-center rounded-xl transition active:scale-95 sm:h-14 sm:max-w-[3.5rem]';
+    'relative flex h-12 w-full max-w-[3.25rem] items-center justify-center rounded-lg transition active:scale-95 sm:h-14 sm:max-w-[3.5rem]';
   if (danger) cls += ' bg-red-600 text-white hover:bg-red-500';
   else if (recording) cls += ' bg-red-600 text-white ring-2 ring-red-400/40';
   else if (off) cls += ' bg-red-600 text-white hover:bg-red-500 ring-1 ring-red-400/30';

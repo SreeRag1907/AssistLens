@@ -11,6 +11,7 @@ import {
 } from '../lib/api';
 import type { AgentTokenInfo } from '../lib/types';
 import { CallStage } from '../components/CallStage';
+import { btnClass } from '../components/ui';
 
 export function AgentCall() {
   const { id = '' } = useParams();
@@ -63,10 +64,7 @@ export function AgentCall() {
     return (
       <Centered>
         <p className="text-lg text-white">{error}</p>
-        <button
-          onClick={() => navigate('/agent')}
-          className="mt-4 rounded-xl bg-brand px-5 py-2.5 font-semibold text-white shadow-glow transition hover:bg-brand-strong"
-        >
+        <button onClick={() => navigate('/agent')} className={btnClass('primary', 'mt-4')}>
           Back to console
         </button>
       </Centered>

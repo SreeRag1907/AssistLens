@@ -9,7 +9,7 @@ import {
 import type { JoinInfo } from '../lib/types';
 import { CallStage } from '../components/CallStage';
 import { PreJoinLobby, type MediaPrefs } from '../components/PreJoinLobby';
-import { Button, Logo, ThemeToggle } from '../components/ui';
+import { Button, Logo, ThemeToggle, Spinner } from '../components/ui';
 
 type Phase = 'checking' | 'invalid' | 'lobby' | 'joining' | 'incall' | 'left' | 'ended';
 
@@ -157,8 +157,8 @@ export function CustomerJoin() {
   if (phase === 'checking' || phase === 'joining') {
     return (
       <Screen>
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-line border-t-brand" />
-        <p className="mt-4 text-muted">
+        <Spinner className="h-10 w-10" />
+        <p className="mt-4 text-sm text-muted">
           {phase === 'joining' ? 'Joining your call…' : 'Opening your support session…'}
         </p>
       </Screen>
@@ -168,7 +168,7 @@ export function CustomerJoin() {
   if (phase === 'invalid') {
     return (
       <Screen>
-        <div className="w-full max-w-sm animate-scale-in rounded-3xl border border-line bg-surface p-8 text-center shadow-card">
+        <div className="w-full max-w-sm animate-scale-in rounded-xl border border-line bg-surface p-8 text-center shadow-card">
           <h1 className="text-xl font-bold text-fg">This link can't be opened</h1>
           <p className="mt-2 text-sm text-muted">{invalidReason}</p>
         </div>
@@ -179,7 +179,7 @@ export function CustomerJoin() {
   if (phase === 'ended') {
     return (
       <Screen>
-        <div className="w-full max-w-sm animate-scale-in rounded-3xl border border-line bg-surface p-8 text-center shadow-card">
+        <div className="w-full max-w-sm animate-scale-in rounded-xl border border-line bg-surface p-8 text-center shadow-card">
           <h1 className="text-xl font-bold text-fg">This call has ended</h1>
           <p className="mt-2 text-sm text-muted">The support session is closed. You can close this page.</p>
         </div>
@@ -190,7 +190,7 @@ export function CustomerJoin() {
   if (phase === 'left') {
     return (
       <Screen>
-        <div className="w-full max-w-sm animate-scale-in rounded-3xl border border-line bg-surface p-8 text-center shadow-card">
+        <div className="w-full max-w-sm animate-scale-in rounded-xl border border-line bg-surface p-8 text-center shadow-card">
           <h1 className="text-xl font-bold text-fg">You've left the call</h1>
           <p className="mt-2 text-sm text-muted">You can rejoin if the session is still active.</p>
           {error && <p className="mt-3 text-sm text-red-500">{error}</p>}

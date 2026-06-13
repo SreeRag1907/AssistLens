@@ -4,6 +4,7 @@ import { Login } from './pages/Login';
 import { AdminLogin } from './pages/AdminLogin';
 import { AgentDashboard } from './pages/AgentDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { AdminSessionDetail } from './pages/AdminSessionDetail';
 import { AgentCall } from './pages/AgentCall';
 import { SessionDetail } from './pages/SessionDetail';
 import { CustomerJoin } from './pages/CustomerJoin';
@@ -43,6 +44,14 @@ export default function App() {
           <RequireAgent>
             <SessionDetail />
           </RequireAgent>
+        }
+      />
+      <Route
+        path="/admin/sessions/:id"
+        element={
+          <RequireAdmin>
+            <AdminSessionDetail />
+          </RequireAdmin>
         }
       />
       <Route
