@@ -18,9 +18,7 @@ Built for the AtomQuest Hackathon *Real-Time Video Support Platform* problem sta
 - [Local development](#local-development)
 - [Environment variables](#environment-variables)
 - [Deployment](#deployment)
-- [Demo script](#demo-script)
 - [API overview](#api-overview)
-- [Known limitations](#known-limitations)
 
 ---
 
@@ -62,40 +60,50 @@ flowchart TD
     custUI[Customer Join /j/code]
   end
 
-  subgraph host [Your infrastructure]
-    web[Web — Vite / React]
+  subgraph vercel [Vercel]
+    web[Web — React / Vite]
+  end
+
+  subgraph render [Render]
     api[API — Fastify + TypeScript]
-    lk[LiveKit SFU — Docker]
-    minio[MinIO — recordings + files]
+  end
+
+  subgraph railway [Railway — self-hosted media]
+    lk[LiveKit SFU]
+    redis[(Redis)]
+    minio[MinIO]
     egress[LiveKit Egress]
   end
 
-  subgraph managed [Managed]
-    pg[(Supabase Postgres)]
-  end
+  pg[(Supabase Postgres)]
 
   agentUI --> web
   adminUI --> web
   custUI --> web
   web -->|REST| api
-  api -->|tokens, webhooks| lk
   api --> pg
+  api -->|tokens, webhooks| lk
+  api --> minio
   agentUI <-->|WebRTC + data channel| lk
   custUI <-->|WebRTC + data channel| lk
-  lk --> egress
+  lk --> redis
+  egress --> redis
+  egress --> lk
   egress --> minio
-  api --> minio
+  lk -->|webhooks| api
 ```
 
 ### Design decisions
 
 | Concern | Choice | Why |
 | --- | --- | --- |
-| Media | Self-hosted **LiveKit SFU** | Server-routed media on infrastructure you operate; satisfies “no third-party hosted video API” |
-| Database | **Supabase Postgres** | Managed Postgres for sessions, chat, events, recordings metadata |
+| Frontend | **Vercel** | Static SPA with HTTPS; proxies API via `VITE_API_BASE` |
+| API | **Render** | Fastify service; handles auth, sessions, webhooks, admin |
+| Media | Self-hosted **LiveKit SFU** on Railway | Server-routed media; no third-party hosted video API |
+| Database | **Supabase Postgres** | Sessions, chat, events, recordings metadata |
 | Realtime chat | **LiveKit data channels** + REST persist | Low latency in-call; durable transcript after the call |
-| Presence / reconnect | **Postgres** (`grace_until` + sweep) | No Redis required for hackathon scope |
-| Object storage | **MinIO** (S3-compatible) | Recordings and chat file attachments |
+| Presence / reconnect | **Postgres** (`grace_until` + sweep) | Reconnect grace without extra client state |
+| Object storage | **MinIO** on Railway | Recordings and chat file attachments |
 | Customer access | **Short invite code** + signed JWT | Simple URLs; scoped tokens minted at join time |
 | Staff access | **Separate agent / admin JWTs** | Agents cannot access admin routes |
 
@@ -150,6 +158,7 @@ AssistLens/
 - **No login.** Opens short link → pre-join lobby (camera/mic preview) → joins call
 - **Credential:** invite code resolves to session; API mints scoped LiveKit + invite JWT at join time
 - **LiveKit grants:** publish/subscribe only (no room admin)
+- **Leave vs end:** customer can disconnect anytime (30s reconnect grace); only the **agent** formally ends the session for everyone
 
 ---
 
@@ -261,33 +270,21 @@ Web (optional, production):
 
 ## Deployment
 
-| Component | Suggested host | Notes |
+Production stack:
+
+| Component | Host | Notes |
 | --- | --- | --- |
-| **Web** | Vercel | Build `web/`, set `VITE_API_BASE` |
-| **API** | Railway / Render | Deploy `api/` via Dockerfile; set all env vars |
-| **Postgres** | Supabase | Connection string in `DATABASE_URL` |
-| **LiveKit + MinIO + Egress** | Railway | See [`infra/railway/README.md`](infra/railway/README.md) — TCP proxy 7882 required for video |
+| **Web** | [Vercel](https://vercel.com) | Build `web/`, set `VITE_API_BASE` to your API URL |
+| **API** | [Render](https://render.com) | Deploy `api/` via Dockerfile; set all env vars |
+| **Postgres** | [Supabase](https://supabase.com) | Connection string in `DATABASE_URL` |
+| **LiveKit SFU** | [Railway](https://railway.app) | `infra/livekit-railway` — TCP proxy on port **7882** required for WebRTC |
+| **MinIO + Redis + Egress** | Railway | Recording + chat files — see [`infra/railway/README.md`](infra/railway/README.md) |
 
-**HTTPS is required** for camera/microphone (`getUserMedia`) and secure WebSocket (`wss://`). Vercel/Railway/Render provide TLS automatically.
+**HTTPS is required** for camera/microphone (`getUserMedia`) and secure WebSocket (`wss://`).
 
-Set `PUBLIC_WEB_ORIGIN` to your Vercel URL and `PUBLIC_LIVEKIT_URL` to your public LiveKit `wss://` URL.
+Set `PUBLIC_WEB_ORIGIN` to your Vercel URL, `PUBLIC_LIVEKIT_URL` to your LiveKit `wss://` URL, and `RECORDING_ENABLED=true` once Egress + Redis are running.
 
-Render users: see [`infra/render.yaml`](infra/render.yaml).
-
----
-
-## Demo script (~2 minutes)
-
-1. **Agent** signs in → creates session → copies short link `/j/xxxxxxxx`
-2. **Agent** joins call (waiting for customer)
-3. **Customer** opens link → pre-join lobby → allows camera/mic → joins
-4. Both verify **audio/video** and send **chat** messages
-5. **Agent** uploads a **file** in chat; customer downloads it
-6. **Agent** starts **recording** → customer sees REC indicator
-7. **Customer** refreshes page → auto-reconnects to active call
-8. **Agent** ends call → customer sees “call ended”
-9. **Agent** opens session **history** → transcript, events, recording download
-10. **Admin** signs in at `/admin/login` → sees session list and event log
+Render blueprint: [`infra/render.yaml`](infra/render.yaml).
 
 ---
 
@@ -306,16 +303,6 @@ Base path: `/api` (proxied in dev from Vite).
 | **Admin** | `GET /admin/sessions`, `GET /admin/sessions/:id/detail`, `POST /admin/sessions/:id/end` |
 | **Ops** | `GET /health`, `GET /metrics` (Prometheus) |
 | **Webhooks** | `POST /webhooks/livekit` |
-
----
-
-## Known limitations
-
-- **LiveKit on Docker Desktop (Windows)** — WebRTC may need `use_external_ip: false` and `node_ip: 127.0.0.1` in LiveKit config (already set for local dev).
-- **Recording** requires the full Docker stack (LiveKit + Redis + MinIO + Egress).
-- **Single seeded agent** by default; admin sees all sessions but does not impersonate agents.
-- **Invite codes** are session-scoped and persist for the life of the session; legacy JWT links still work.
-- **File uploads** limited to 20 MB and allowed MIME types (images, PDF, Word, Excel, plain text).
 
 ---
 
