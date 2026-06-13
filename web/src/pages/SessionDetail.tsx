@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   getAgentToken,
   getInvite,
   getMessages,
-  getRecordingUrl,
   getSession,
+  listFiles,
+  listRecordings,
+  downloadRecording,
+  downloadFile,
   ApiError,
 } from '../lib/api';
-import type { ChatMessage, EventRecord, ParticipantRecord, RecordingRecord, SessionSummary } from '../lib/types';
+import type { ChatFile, ChatMessage, EventRecord, ParticipantRecord, RecordingRecord, SessionSummary } from '../lib/types';
 import { btnClass, Button, Card, Logo, StatusBadge, ThemeToggle } from '../components/ui';
 import { ShareDialog } from '../components/ShareDialog';
 
@@ -30,7 +33,11 @@ export function SessionDetail() {
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [recordings, setRecordings] = useState<RecordingRecord[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [files, setFiles] = useState<ChatFile[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [downloadBusy, setDownloadBusy] = useState<string | null>(null);
+  const [downloadMsg, setDownloadMsg] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [share, setShare] = useState<{ open: boolean; url: string | null; loading: boolean; error: string | null }>({
     open: false,
     url: null,
@@ -61,26 +68,85 @@ export function SessionDetail() {
     }
     (async () => {
       try {
-        const res = await getSession(token, id);
+        const [res, msgRes, fileRes] = await Promise.all([
+          getSession(token, id),
+          getMessages(token, id),
+          listFiles(token, id).catch(() => ({ files: [] as ChatFile[] })),
+        ]);
         setSession(res.session);
         setParticipants(res.participants);
         setEvents(res.events);
         setRecordings(res.recordings);
-        const m = await getMessages(token, id);
-        setMessages(m.messages);
+        setMessages(msgRes.messages);
+        setFiles(fileRes.files);
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Could not load session.');
       }
     })();
   }, [token, id, navigate]);
 
-  async function download(rid: string) {
+  // Poll recording status when any recording is processing/in_progress
+  useEffect(() => {
+    if (!token) return;
+    const hasPending = recordings.some(
+      (r) => r.status === 'in_progress' || r.status === 'processing',
+    );
+    if (hasPending && !pollRef.current) {
+      pollRef.current = setInterval(async () => {
+        try {
+          const res = await listRecordings(token, id);
+          setRecordings(res.recordings);
+          const stillPending = res.recordings.some(
+            (r) => r.status === 'in_progress' || r.status === 'processing',
+          );
+          if (!stillPending && pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        } catch {
+          /* ignore */
+        }
+      }, 5000);
+    }
+    if (!hasPending && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordings.map((r) => r.status).join(','), token, id]);
+
+  async function download(rid: string, objectKey: string | null) {
+    if (!token) return;
+    setDownloadBusy(rid);
+    setDownloadMsg(null);
+    try {
+      const fileName = objectKey?.split('/').pop() ?? 'recording.mp4';
+      await downloadRecording(token, id, rid, fileName);
+      setDownloadMsg({ id: rid, msg: 'Download started.', ok: true });
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Recording not ready.';
+      setDownloadMsg({ id: rid, msg, ok: false });
+      // Refresh status if file was missing
+      if (err instanceof ApiError && (err.status === 404 || err.code === 'file_missing')) {
+        listRecordings(token, id).then((r) => setRecordings(r.recordings)).catch(() => {});
+      }
+    } finally {
+      setDownloadBusy(null);
+    }
+  }
+
+  async function downloadSharedFile(fileId: string, fileName: string) {
     if (!token) return;
     try {
-      const res = await getRecordingUrl(token, id, rid);
-      window.open(res.url, '_blank');
-    } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Recording not ready.');
+      await downloadFile(token, id, fileId, fileName);
+    } catch {
+      alert('Could not download file. Please try again.');
     }
   }
 
@@ -165,16 +231,62 @@ export function SessionDetail() {
           ) : (
             <ul className="divide-y divide-line">
               {recordings.map((r) => (
-                <li key={r.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                  <span className="text-muted">{fmt(r.created_at)}</span>
-                  <div className="flex items-center gap-3">
-                    <StatusBadge status={r.status} />
-                    {r.status === 'ready' && (
-                      <Button onClick={() => download(r.id)} className="px-3 py-1.5 text-xs">
-                        Download
-                      </Button>
-                    )}
+                <li key={r.id} className="space-y-1.5 py-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted">{fmt(r.created_at)}</span>
+                    <div className="flex items-center gap-3">
+                      <StatusBadge status={r.status} />
+                      {(r.status === 'in_progress' || r.status === 'processing') && (
+                        <span className="flex items-center gap-1.5 text-xs text-amber-500">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
+                          {r.status === 'in_progress' ? 'Recording…' : 'Processing…'}
+                        </span>
+                      )}
+                      {r.status === 'ready' && (
+                        <Button
+                          onClick={() => download(r.id, r.object_key)}
+                          disabled={downloadBusy === r.id}
+                          className="px-3 py-1.5 text-xs"
+                        >
+                          {downloadBusy === r.id ? 'Getting link…' : 'Download'}
+                        </Button>
+                      )}
+                    </div>
                   </div>
+                  {downloadMsg?.id === r.id && (
+                    <p
+                      className={`text-xs ${downloadMsg.ok ? 'text-emerald-500' : 'text-red-400'}`}
+                    >
+                      {downloadMsg.msg}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+
+        <Section title="Shared Files" count={files.length}>
+          {files.length === 0 ? (
+            <Empty>No files were shared in this session.</Empty>
+          ) : (
+            <ul className="divide-y divide-line">
+              {files.map((f) => (
+                <li key={f.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-fg">{f.file_name}</p>
+                    <p className="text-xs text-muted">
+                      {f.sender_name ?? f.sender_identity} · {fmt(f.created_at)} ·{' '}
+                      {(f.file_size / 1024).toFixed(0)} KB
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={() => downloadSharedFile(f.id, f.file_name)}
+                    className="shrink-0 px-3 py-1.5 text-xs"
+                  >
+                    Download
+                  </Button>
                 </li>
               ))}
             </ul>

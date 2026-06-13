@@ -60,6 +60,18 @@ export interface RecordingRow {
   updated_at: string;
 }
 
+export interface ChatFileRow {
+  id: string;
+  session_id: string;
+  sender_identity: string;
+  sender_name: string | null;
+  file_name: string;
+  file_size: number;
+  content_type: string;
+  object_key: string;
+  created_at: string;
+}
+
 // JWT payload for an authenticated agent.
 export interface AgentClaims {
   sub: string;

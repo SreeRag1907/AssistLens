@@ -30,11 +30,17 @@ export const config = {
   publicWebOrigin: required('PUBLIC_WEB_ORIGIN', 'http://localhost:5173'),
 
   s3: {
+    // Host-reachable MinIO URL (API reads/writes, presigned URLs).
     endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',
+    // URL Egress uses when uploading from Docker (localhost inside a container
+    // is the container itself — use host.docker.internal on Docker Desktop).
+    egressEndpoint:
+      process.env.S3_EGRESS_ENDPOINT ?? 'http://host.docker.internal:9000',
     accessKey: process.env.S3_ACCESS_KEY ?? 'assistlens',
     secretKey: process.env.S3_SECRET_KEY ?? 'assistlens-minio',
     region: process.env.S3_REGION ?? 'us-east-1',
     bucket: process.env.MINIO_BUCKET ?? 'recordings',
+    filesBucket: process.env.FILES_BUCKET ?? 'files',
   },
 
   reconnectGraceSeconds: Number(process.env.RECONNECT_GRACE_SECONDS ?? 30),

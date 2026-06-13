@@ -3,14 +3,27 @@ export type Role = 'agent' | 'customer';
 export interface SessionSummary {
   id: string;
   agent_id: string;
+  agent_email?: string;
   room_name: string;
   title: string | null;
   status: 'active' | 'ended';
   created_at: string;
   ended_at: string | null;
   ended_by: string | null;
-  participant_count?: string;
-  live_count?: string;
+  participant_count?: string | number;
+  live_count?: string | number;
+}
+
+export interface ChatFile {
+  id: string;
+  session_id: string;
+  sender_identity: string;
+  sender_name: string | null;
+  file_name: string;
+  file_size: number;
+  content_type: string;
+  object_key: string;
+  created_at: string;
 }
 
 export interface ParticipantRecord {

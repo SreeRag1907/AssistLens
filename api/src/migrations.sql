@@ -69,3 +69,20 @@ CREATE TABLE IF NOT EXISTS recordings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_recordings_session ON recordings(session_id);
+
+-- Chat file attachments (file sharing in call)
+CREATE TABLE IF NOT EXISTS chat_files (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id      UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  sender_identity TEXT NOT NULL,
+  sender_name     TEXT,
+  file_name       TEXT NOT NULL,
+  file_size       BIGINT NOT NULL,
+  content_type    TEXT NOT NULL,
+  object_key      TEXT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_files_session ON chat_files(session_id);
+
+-- Add is_admin column to agents for admin dashboard access
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;

@@ -253,7 +253,50 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  // Download URL for a finished recording.
+  // Stream a finished recording through the API (avoids presigned-URL blank-tab issues).
+  app.get('/api/sessions/:id/recording/:rid/download', async (req, reply) => {
+    const agent = await requireAgent(req, reply);
+    if (!agent) return;
+    const { id, rid } = req.params as { id: string; rid: string };
+    const recRes = await query<RecordingRow>(
+      `SELECT r.* FROM recordings r JOIN sessions s ON s.id = r.session_id
+       WHERE r.id = $1 AND r.session_id = $2 AND s.agent_id = $3`,
+      [rid, id, agent.agentId],
+    );
+    const rec = recRes.rows[0];
+    if (!rec || !rec.object_key) {
+      return reply.code(404).send({ error: 'not_ready', message: 'Recording is not ready yet.' });
+    }
+    if (rec.status === 'failed') {
+      return reply.code(410).send({ error: 'recording_failed', message: 'Recording failed to process.' });
+    }
+    if (rec.status !== 'ready') {
+      return reply
+        .code(202)
+        .send({ error: 'processing', message: 'Recording is still processing, please try again shortly.' });
+    }
+
+    const { objectExists, getObjectStream, recordingsBucket } = await import('../s3.js');
+    const exists = await objectExists(recordingsBucket, rec.object_key);
+    if (!exists) {
+      await query(`UPDATE recordings SET status = 'processing', updated_at = now() WHERE id = $1`, [rec.id]);
+      return reply
+        .code(404)
+        .send({
+          error: 'file_missing',
+          message: 'Recording file not found in storage. Please record again with Docker running.',
+        });
+    }
+
+    const obj = await getObjectStream(recordingsBucket, rec.object_key);
+    const fileName = rec.object_key.split('/').pop() ?? 'recording.mp4';
+    reply.header('Content-Type', obj.ContentType ?? 'video/mp4');
+    reply.header('Content-Disposition', `attachment; filename="${fileName}"`);
+    if (obj.ContentLength) reply.header('Content-Length', obj.ContentLength);
+    return reply.send(obj.Body);
+  });
+
+  // Presigned download URL for a finished recording.
   app.get('/api/sessions/:id/recording/:rid/url', async (req, reply) => {
     const agent = await requireAgent(req, reply);
     if (!agent) return;
@@ -264,11 +307,42 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       [rid, id, agent.agentId],
     );
     const rec = recRes.rows[0];
-    if (!rec || rec.status !== 'ready' || !rec.object_key) {
+    if (!rec || !rec.object_key) {
       return reply.code(404).send({ error: 'not_ready', message: 'Recording is not ready yet.' });
     }
-    // MinIO bucket is set to public download; build a direct object URL.
-    const base = config.s3.endpoint.replace(/\/$/, '');
-    return { url: `${base}/${config.s3.bucket}/${rec.object_key}` };
+    if (rec.status === 'failed') {
+      return reply.code(410).send({ error: 'recording_failed', message: 'Recording failed to process.' });
+    }
+    if (rec.status !== 'ready') {
+      return reply.code(202).send({ error: 'processing', message: 'Recording is still processing, please try again shortly.' });
+    }
+
+    const { objectExists, presignGet, recordingsBucket } = await import('../s3.js');
+    const exists = await objectExists(recordingsBucket, rec.object_key);
+    if (!exists) {
+      await query(`UPDATE recordings SET status = 'processing', updated_at = now() WHERE id = $1`, [rec.id]);
+      return reply
+        .code(202)
+        .send({ error: 'processing', message: 'Recording file is still being written. Please try again in a moment.' });
+    }
+
+    const url = await presignGet(recordingsBucket, rec.object_key, 3600);
+    return { url };
+  });
+
+  // List recordings for a session with current status (used for status polling).
+  app.get('/api/sessions/:id/recordings', async (req, reply) => {
+    const agent = await requireAgent(req, reply);
+    if (!agent) return;
+    const { id } = req.params as { id: string };
+    const owns = await query('SELECT 1 FROM sessions WHERE id = $1 AND agent_id = $2', [id, agent.agentId]);
+    if ((owns.rowCount ?? 0) === 0) {
+      return reply.code(403).send({ error: 'forbidden' });
+    }
+    const res = await query<RecordingRow>(
+      'SELECT * FROM recordings WHERE session_id = $1 ORDER BY created_at ASC',
+      [id],
+    );
+    return { recordings: res.rows };
   });
 }

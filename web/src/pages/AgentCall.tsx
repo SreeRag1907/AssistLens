@@ -99,6 +99,7 @@ export function AgentCall() {
         setRecId(null);
       }}
       onLeft={() => navigate(`/agent/history/${id}`)}
+      onSessionEnded={() => navigate(`/agent/history/${id}`)}
     />
   );
 }

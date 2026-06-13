@@ -1,12 +1,16 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import { config } from './config.js';
 import { migrate, seedAgent } from './db.js';
+import { ensureBuckets } from './s3.js';
 import { sweepExpiredGrace } from './presence.js';
 import { authRoutes } from './routes/auth.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { joinRoutes } from './routes/join.js';
 import { messageRoutes } from './routes/messages.js';
+import { fileRoutes } from './routes/files.js';
+import { adminRoutes } from './routes/admin.js';
 import { webhookRoutes } from './routes/webhooks.js';
 import { metricsRoutes } from './routes/metrics.js';
 import { errorsTotal } from './metrics.js';
@@ -20,6 +24,10 @@ async function main(): Promise<void> {
   await app.register(cors, {
     origin: config.nodeEnv === 'production' ? [config.publicWebOrigin] : true,
     credentials: true,
+  });
+
+  await app.register(multipart, {
+    limits: { fileSize: 20 * 1024 * 1024, files: 1 },
   });
 
   // LiveKit webhooks arrive as application/webhook+json and must be read raw
@@ -43,11 +51,19 @@ async function main(): Promise<void> {
   await app.register(sessionRoutes);
   await app.register(joinRoutes);
   await app.register(messageRoutes);
+  await app.register(fileRoutes);
+  await app.register(adminRoutes);
   await app.register(webhookRoutes);
   await app.register(metricsRoutes);
 
   await migrate();
   await seedAgent();
+  try {
+    await ensureBuckets();
+    app.log.info('S3 buckets ready');
+  } catch (err) {
+    app.log.warn({ err }, 'S3 bucket init failed — file upload/recording may not work until MinIO is running');
+  }
   app.log.info('migrations applied + seed agent ready');
 
   // Finalize "left" once a participant's reconnect grace window elapses.

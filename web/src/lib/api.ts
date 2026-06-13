@@ -1,5 +1,6 @@
 import type {
   AgentTokenInfo,
+  ChatFile,
   ChatMessage,
   EventRecord,
   JoinInfo,
@@ -101,8 +102,86 @@ export function getRecordingUrl(token: string, id: string, rid: string) {
   return request<{ url: string }>(`/sessions/${id}/recording/${rid}/url`, { token });
 }
 
+async function saveBlobDownload(res: Response, fileName: string): Promise<void> {
+  if (!res.ok) {
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    throw new ApiError(res.status, data.error ?? 'error', data.message ?? 'Download failed.');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Download a recording as a file save (proxied through API — no blank tabs). */
+export async function downloadRecording(token: string, sessionId: string, rid: string, fileName = 'recording.mp4') {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/recording/${rid}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await saveBlobDownload(res, fileName);
+}
+
+/** Download a shared chat file (proxied through API). */
+export async function downloadFile(token: string, sessionId: string, fileId: string, fileName: string) {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/files/${fileId}/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await saveBlobDownload(res, fileName);
+}
+
 export function getRecordingStatus(token: string) {
   return request<{ available: boolean; hint?: string }>('/recording/status', { token });
+}
+
+export function listRecordings(token: string, sessionId: string) {
+  return request<{ recordings: RecordingRecord[] }>(`/sessions/${sessionId}/recordings`, { token });
+}
+
+// ── File sharing ─────────────────────────────────────────────────────────────
+export async function uploadFile(authToken: string, sessionId: string, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/files`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authToken}` },
+    body: form,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new ApiError(res.status, data.error ?? 'error', data.message ?? 'Upload failed.');
+  return data as { file: ChatFile };
+}
+
+export function listFiles(authToken: string, sessionId: string) {
+  return request<{ files: ChatFile[] }>(`/sessions/${sessionId}/files`, { token: authToken });
+}
+
+export function getFileUrl(authToken: string, sessionId: string, fileId: string) {
+  return request<{ url: string; file: ChatFile }>(`/sessions/${sessionId}/files/${fileId}/url`, {
+    token: authToken,
+  });
+}
+
+// ── Admin dashboard ───────────────────────────────────────────────────────────
+export function adminListSessions(token: string) {
+  return request<{ sessions: SessionSummary[] }>('/admin/sessions', { token });
+}
+
+export function adminGetParticipants(token: string, id: string) {
+  return request<{ participants: ParticipantRecord[] }>(`/admin/sessions/${id}/participants`, { token });
+}
+
+export function adminGetEvents(token: string, id: string) {
+  return request<{ events: EventRecord[] }>(`/admin/sessions/${id}/events`, { token });
+}
+
+export function adminEndSession(token: string, id: string) {
+  return request<{ ok: boolean }>(`/admin/sessions/${id}/end`, { method: 'POST', token });
 }
 
 // ── Customer join ────────────────────────────────────────────────────────────

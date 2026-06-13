@@ -116,6 +116,9 @@ export function AgentDashboard() {
         <div className="mx-auto flex max-w-4xl items-center justify-between px-5 py-3.5">
           <Logo size={34} withWordmark />
           <div className="flex items-center gap-2">
+            <Link to="/admin" className={btnClass('ghost', 'px-3 py-2 text-sm')}>
+              Admin
+            </Link>
             <ThemeToggle />
             <button onClick={logout} className={btnClass('ghost', 'px-3 py-2')}>
               Sign out

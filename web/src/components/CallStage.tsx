@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Participant } from 'livekit-client';
 import { useRoom, statusLabel } from '../lib/useRoom';
-import { ApiError, getMessages, postMessage } from '../lib/api';
-import type { ChatMessage, DataPayload, Role } from '../lib/types';
+import { ApiError, getMessages, listFiles, postMessage, uploadFile, downloadFile } from '../lib/api';
+import type { ChatFile, ChatMessage, DataPayload, Role } from '../lib/types';
 import { ParticipantView } from './ParticipantView';
 import { Controls } from './Controls';
 import { Chat } from './Chat';
@@ -20,7 +20,10 @@ interface Props {
   onStartRecording?: () => Promise<void>;
   onStopRecording?: () => Promise<void>;
   onRejoin?: () => Promise<void>;
+  /** User clicked Leave/End, or chose Leave on the disconnect overlay. */
   onLeft: () => void;
+  /** Room was closed by the agent — session is over, no rejoin. */
+  onSessionEnded?: () => void;
 }
 
 function nameFor(p: Participant): string {
@@ -32,8 +35,10 @@ function nameFor(p: Participant): string {
 export function CallStage(props: Props) {
   const { url, token, authToken, sessionId, myIdentity, role } = props;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [files, setFiles] = useState<ChatFile[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
+  const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(!!props.initialRecording);
   const [recordingBusy, setRecordingBusy] = useState(false);
   const [recordingError, setRecordingError] = useState<string | null>(null);
@@ -64,12 +69,15 @@ export function CallStage(props: Props) {
     url,
     token,
     onData: handleData,
-    onSessionEnded: props.onLeft,
+    onSessionEnded: props.onSessionEnded ?? props.onLeft,
   });
 
   useEffect(() => {
     getMessages(authToken, sessionId)
       .then((res) => setMessages(res.messages))
+      .catch(() => {});
+    listFiles(authToken, sessionId)
+      .then((res) => setFiles(res.files))
       .catch(() => {});
   }, [authToken, sessionId]);
 
@@ -129,6 +137,39 @@ export function CallStage(props: Props) {
       setRecordingBusy(false);
     }
   }, [recording, room, props]);
+
+  const handleUpload = useCallback(
+    async (file: File) => {
+      setUploading(true);
+      try {
+        const res = await uploadFile(authToken, sessionId, file);
+        setFiles((prev) => [...prev, res.file]);
+        // Notify others via data channel (they'll receive file info and can fetch the download URL)
+        room.sendData({
+          type: 'chat',
+          id: `file-${res.file.id}`,
+          body: `📎 ${res.file.file_name}`,
+          name: res.file.sender_name ?? 'Participant',
+          role,
+          ts: res.file.created_at,
+        });
+      } catch (err) {
+        alert(err instanceof ApiError ? err.message : 'Upload failed. Is MinIO running?');
+      } finally {
+        setUploading(false);
+      }
+    },
+    [authToken, sessionId, role, room],
+  );
+
+  const handleGetFileUrl = useCallback(
+    async (fileId: string): Promise<string> => {
+      const file = files.find((f) => f.id === fileId);
+      await downloadFile(authToken, sessionId, fileId, file?.file_name ?? 'download');
+      return '';
+    },
+    [authToken, sessionId, files],
+  );
 
   const leave = useCallback(async () => {
     setLeftVoluntarily(true);
@@ -290,8 +331,12 @@ export function CallStage(props: Props) {
         open={chatOpen && !dropped}
         onClose={() => setChatOpen(false)}
         messages={messages}
+        files={files}
         myIdentity={myIdentity}
         onSend={handleSend}
+        onUpload={handleUpload}
+        uploading={uploading}
+        onGetFileUrl={handleGetFileUrl}
       />
     </div>
   );

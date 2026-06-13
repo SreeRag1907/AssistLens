@@ -1,11 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { checkInvite, join, ApiError } from '../lib/api';
+import {
+  clearCustomerSession,
+  loadCustomerSession,
+  saveCustomerSession,
+} from '../lib/customerSession';
 import type { JoinInfo } from '../lib/types';
 import { CallStage } from '../components/CallStage';
 import { Button, Logo, ThemeToggle } from '../components/ui';
 
-type Phase = 'checking' | 'invalid' | 'welcome' | 'joining' | 'incall' | 'left';
+type Phase = 'checking' | 'invalid' | 'welcome' | 'joining' | 'incall' | 'left' | 'ended';
 
 export function CustomerJoin() {
   const [params] = useSearchParams();
@@ -19,6 +24,7 @@ export function CustomerJoin() {
   const [callKey, setCallKey] = useState(0);
   const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const autoRejoinAttempted = useRef(false);
 
   useEffect(() => {
     if (!inviteToken) {
@@ -26,15 +32,57 @@ export function CustomerJoin() {
       setInvalidReason('This link is missing its invite code.');
       return;
     }
+
+    const saved = loadCustomerSession(inviteToken);
+    if (saved?.name) setName(saved.name);
+
     checkInvite(inviteToken)
-      .then((res) => {
-        if (res.valid) {
-          setSessionTitle(res.sessionTitle ?? 'Video support');
-          setPhase('welcome');
-        } else {
+      .then(async (res) => {
+        if (!res.valid) {
+          clearCustomerSession(inviteToken);
           setPhase('invalid');
           setInvalidReason(reasonText(res.reason));
+          return;
         }
+
+        setSessionTitle(res.sessionTitle ?? 'Video support');
+
+        // Refresh while in an active call — auto-reconnect.
+        if (saved?.wasInCall && !saved.pendingRejoin && !autoRejoinAttempted.current) {
+          autoRejoinAttempted.current = true;
+          setPhase('joining');
+          try {
+            const info = await join(inviteToken, saved.name.trim() || undefined);
+            setJoinInfo(info);
+            setDuplicateWarning(info.duplicate);
+            setCallKey((k) => k + 1);
+            saveCustomerSession(inviteToken, {
+              name: saved.name,
+              wasInCall: true,
+              sessionId: info.sessionId,
+            });
+            setPhase('incall');
+            return;
+          } catch (err) {
+            if (err instanceof ApiError && (err.status === 410 || err.code === 'session_ended')) {
+              clearCustomerSession(inviteToken);
+              setPhase('ended');
+              return;
+            }
+            // Could not auto-rejoin — offer manual rejoin.
+            setPhase('left');
+            setError(err instanceof ApiError ? err.message : 'Could not reconnect.');
+            return;
+          }
+        }
+
+        // Refresh after voluntary leave — show rejoin screen, not the welcome form.
+        if (saved?.pendingRejoin) {
+          setPhase('left');
+          return;
+        }
+
+        setPhase('welcome');
       })
       .catch((err) => {
         setPhase('invalid');
@@ -42,16 +90,31 @@ export function CustomerJoin() {
       });
   }, [inviteToken]);
 
+  async function enterCall(info: JoinInfo, displayName: string) {
+    setJoinInfo(info);
+    setDuplicateWarning(info.duplicate);
+    setCallKey((k) => k + 1);
+    saveCustomerSession(inviteToken, {
+      name: displayName,
+      wasInCall: true,
+      pendingRejoin: false,
+      sessionId: info.sessionId,
+    });
+    setPhase('incall');
+  }
+
   async function handleJoin() {
     setError(null);
     setPhase('joining');
     try {
       const info = await join(inviteToken, name.trim() || undefined);
-      setJoinInfo(info);
-      setDuplicateWarning(info.duplicate);
-      setCallKey((k) => k + 1);
-      setPhase('incall');
+      await enterCall(info, name.trim() || info.displayName);
     } catch (err) {
+      if (err instanceof ApiError && (err.status === 410 || err.code === 'session_ended')) {
+        clearCustomerSession(inviteToken);
+        setPhase('ended');
+        return;
+      }
       setError(err instanceof ApiError ? err.message : 'We could not connect you.');
       setPhase('welcome');
     }
@@ -59,17 +122,45 @@ export function CustomerJoin() {
 
   async function handleRejoin() {
     setError(null);
-    const info = await join(inviteToken, name.trim() || undefined);
-    setJoinInfo(info);
-    setCallKey((k) => k + 1);
-    setPhase('incall');
+    setPhase('joining');
+    try {
+      const info = await join(inviteToken, name.trim() || undefined);
+      await enterCall(info, name.trim() || info.displayName);
+    } catch (err) {
+      if (err instanceof ApiError && (err.status === 410 || err.code === 'session_ended')) {
+        clearCustomerSession(inviteToken);
+        setPhase('ended');
+        return;
+      }
+      setError(err instanceof ApiError ? err.message : 'Could not rejoin.');
+      setPhase('left');
+    }
   }
 
-  if (phase === 'checking') {
+  function handleLeft() {
+    saveCustomerSession(inviteToken, {
+      name,
+      wasInCall: true,
+      pendingRejoin: true,
+      sessionId: joinInfo?.sessionId,
+    });
+    setJoinInfo(null);
+    setPhase('left');
+  }
+
+  function handleSessionEnded() {
+    clearCustomerSession(inviteToken);
+    setJoinInfo(null);
+    setPhase('ended');
+  }
+
+  if (phase === 'checking' || phase === 'joining') {
     return (
       <Screen>
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-line border-t-brand" />
-        <p className="mt-4 text-muted">Opening your support session…</p>
+        <p className="mt-4 text-muted">
+          {phase === 'joining' ? 'Reconnecting to your call…' : 'Opening your support session…'}
+        </p>
       </Screen>
     );
   }
@@ -91,6 +182,23 @@ export function CustomerJoin() {
     );
   }
 
+  if (phase === 'ended') {
+    return (
+      <Screen>
+        <div className="w-full max-w-sm animate-scale-in rounded-3xl border border-line bg-surface p-8 text-center shadow-card">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-line/40 text-2xl">
+            ✓
+          </div>
+          <h1 className="text-xl font-bold text-fg">This call has ended</h1>
+          <p className="mt-2 text-sm text-muted">
+            The support session is closed. You can close this page.
+          </p>
+          <p className="mt-4 text-xs text-subtle">Need more help? Ask your agent for a new invite link.</p>
+        </div>
+      </Screen>
+    );
+  }
+
   if (phase === 'left') {
     return (
       <Screen>
@@ -105,7 +213,7 @@ export function CustomerJoin() {
               {error}
             </p>
           )}
-          <Button onClick={handleJoin} className="mt-5 w-full py-3">
+          <Button onClick={handleRejoin} className="mt-5 w-full py-3">
             Rejoin call
           </Button>
         </div>
@@ -131,13 +239,14 @@ export function CustomerJoin() {
           role="customer"
           initialRecording={joinInfo.recording === 'in_progress'}
           onRejoin={handleRejoin}
-          onLeft={() => setPhase('left')}
+          onLeft={handleLeft}
+          onSessionEnded={handleSessionEnded}
         />
       </>
     );
   }
 
-  // welcome / joining
+  // welcome
   return (
     <Screen>
       <div className="w-full max-w-sm animate-fade-in rounded-3xl border border-line bg-surface p-7 text-center shadow-card">
@@ -180,8 +289,8 @@ export function CustomerJoin() {
           </p>
         )}
 
-        <Button onClick={handleJoin} disabled={phase === 'joining'} className="mt-4 w-full py-4 text-base">
-          {phase === 'joining' ? 'Connecting…' : 'Join video call'}
+        <Button onClick={handleJoin} className="mt-4 w-full py-4 text-base">
+          Join video call
         </Button>
         <p className="mt-3 text-xs text-subtle">You may be recorded for support quality.</p>
       </div>

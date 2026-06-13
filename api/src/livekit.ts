@@ -63,7 +63,8 @@ export async function startRoomRecording(room: string): Promise<{ egressId: stri
         accessKey: config.s3.accessKey,
         secret: config.s3.secretKey,
         region: config.s3.region,
-        endpoint: config.s3.endpoint,
+        // Egress runs in Docker — must reach MinIO via host.docker.internal, not localhost.
+        endpoint: config.s3.egressEndpoint,
         bucket: config.s3.bucket,
         forcePathStyle: true,
       }),
