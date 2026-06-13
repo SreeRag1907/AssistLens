@@ -43,6 +43,7 @@ function fmtDate(iso: string) {
 interface ShareState {
   open: boolean;
   url: string | null;
+  sessionTitle?: string;
   loading: boolean;
   error: string | null;
 }
@@ -94,9 +95,16 @@ export function AgentDashboard() {
     setBusy(true);
     setError(null);
     try {
-      const res = await createSession(token, title || undefined);
+      const sessionTitle = title || undefined;
+      const res = await createSession(token, sessionTitle);
       setTitle('');
-      setShare({ open: true, url: res.invite.url, loading: false, error: null });
+      setShare({
+        open: true,
+        url: res.invite.url,
+        sessionTitle: res.session.title ?? sessionTitle,
+        loading: false,
+        error: null,
+      });
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create session.');
@@ -105,12 +113,12 @@ export function AgentDashboard() {
     }
   }
 
-  async function openShare(id: string) {
+  async function openShare(id: string, sessionTitle?: string) {
     if (!token) return;
-    setShare({ open: true, url: null, loading: true, error: null });
+    setShare({ open: true, url: null, sessionTitle, loading: true, error: null });
     try {
       const res = await getInvite(token, id);
-      setShare({ open: true, url: res.url, loading: false, error: null });
+      setShare({ open: true, url: res.url, sessionTitle, loading: false, error: null });
     } catch (err) {
       setShare({
         open: true,
@@ -214,7 +222,7 @@ export function AgentDashboard() {
                       <Link to={`/agent/call/${s.id}`} className={btnClass('primary', 'flex-1 sm:flex-none')}>
                         Join call
                       </Link>
-                      <button onClick={() => openShare(s.id)} className={btnClass('secondary')}>
+                      <button onClick={() => openShare(s.id, s.title ?? undefined)} className={btnClass('secondary')}>
                         Share
                       </button>
                     </div>
@@ -272,6 +280,7 @@ export function AgentDashboard() {
       <ShareDialog
         open={share.open}
         url={share.url}
+        title={share.sessionTitle}
         loading={share.loading}
         error={share.error}
         onClose={() => setShare((s) => ({ ...s, open: false }))}

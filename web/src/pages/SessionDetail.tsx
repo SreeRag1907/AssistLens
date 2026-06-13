@@ -37,7 +37,13 @@ export function SessionDetail() {
   const [downloadBusy, setDownloadBusy] = useState<string | null>(null);
   const [downloadMsg, setDownloadMsg] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [share, setShare] = useState<{ open: boolean; url: string | null; loading: boolean; error: string | null }>({
+  const [share, setShare] = useState<{
+    open: boolean;
+    url: string | null;
+    sessionTitle?: string;
+    loading: boolean;
+    error: string | null;
+  }>({
     open: false,
     url: null,
     loading: false,
@@ -46,10 +52,16 @@ export function SessionDetail() {
 
   async function openShare() {
     if (!token) return;
-    setShare({ open: true, url: null, loading: true, error: null });
+    setShare({ open: true, url: null, sessionTitle: session?.title ?? undefined, loading: true, error: null });
     try {
       const res = await getInvite(token, id);
-      setShare({ open: true, url: res.url, loading: false, error: null });
+      setShare({
+        open: true,
+        url: res.url,
+        sessionTitle: session?.title ?? undefined,
+        loading: false,
+        error: null,
+      });
     } catch (err) {
       setShare({
         open: true,
@@ -334,6 +346,7 @@ export function SessionDetail() {
       <ShareDialog
         open={share.open}
         url={share.url}
+        title={share.sessionTitle ?? session?.title ?? undefined}
         loading={share.loading}
         error={share.error}
         onClose={() => setShare((s) => ({ ...s, open: false }))}

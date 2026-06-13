@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { getAgentEmail } from '../lib/api';
+import { buildInviteEmail, copyInviteEmail, gmailComposeUrl } from '../lib/inviteEmail';
 import { Button } from './ui';
 
 interface Props {
@@ -12,10 +14,20 @@ interface Props {
 
 export function ShareDialog({ open, url, title, loading, error, onClose }: Props) {
   const [copied, setCopied] = useState(false);
+  const [emailHint, setEmailHint] = useState(false);
   const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
+  const agentName = getAgentEmail() ?? undefined;
+
+  const emailContent = useMemo(() => {
+    if (!url) return null;
+    return buildInviteEmail({ inviteUrl: url, sessionTitle: title, agentName });
+  }, [url, title, agentName]);
 
   useEffect(() => {
-    if (!open) setCopied(false);
+    if (!open) {
+      setCopied(false);
+      setEmailHint(false);
+    }
   }, [open]);
 
   useEffect(() => {
@@ -28,7 +40,7 @@ export function ShareDialog({ open, url, title, loading, error, onClose }: Props
 
   if (!open) return null;
 
-  async function copy() {
+  async function copyLink() {
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
@@ -37,6 +49,15 @@ export function ShareDialog({ open, url, title, loading, error, onClose }: Props
     } catch {
       /* clipboard blocked */
     }
+  }
+
+  async function openBrandedEmail() {
+    if (!emailContent) return;
+    const ok = await copyInviteEmail(emailContent);
+    if (!ok) return;
+    window.open(gmailComposeUrl(emailContent.subject), '_blank', 'noopener,noreferrer');
+    setEmailHint(true);
+    setTimeout(() => setEmailHint(false), 6000);
   }
 
   async function nativeShare() {
@@ -50,17 +71,6 @@ export function ShareDialog({ open, url, title, loading, error, onClose }: Props
     } catch {
       /* user dismissed */
     }
-  }
-
-  function gmailComposeHref(): string {
-    if (!url) return '#';
-    const params = new URLSearchParams({
-      view: 'cm',
-      fs: '1',
-      su: 'Your video support call',
-      body: `Join your video support call:\n\n${url}`,
-    });
-    return `https://mail.google.com/mail/?${params.toString()}`;
   }
 
   return (
@@ -108,7 +118,7 @@ export function ShareDialog({ open, url, title, loading, error, onClose }: Props
                   onFocus={(e) => e.currentTarget.select()}
                   className="field min-w-0 flex-1 font-mono text-xs"
                 />
-                <Button variant="secondary" onClick={copy} className="shrink-0">
+                <Button variant="secondary" onClick={copyLink} className="shrink-0">
                   {copied ? 'Copied' : 'Copy'}
                 </Button>
               </div>
@@ -123,17 +133,24 @@ export function ShareDialog({ open, url, title, loading, error, onClose }: Props
                   href={`sms:?&body=${encodeURIComponent(`Join your video support call: ${url ?? ''}`)}`}
                   className="w-full"
                 >
-                  <Button variant="secondary" className="w-full">SMS</Button>
+                  <Button variant="secondary" className="w-full">
+                    SMS
+                  </Button>
                 </a>
-                <a
-                  href={gmailComposeHref()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full"
-                >
-                  <Button variant="secondary" className="w-full">Email</Button>
-                </a>
+                <Button variant="secondary" onClick={openBrandedEmail} className="w-full">
+                  Email
+                </Button>
               </div>
+
+              {emailHint && (
+                <p className="mt-3 rounded-lg border border-brand/30 bg-brand-soft px-3 py-2 text-xs text-brand">
+                  Branded email copied — switch to Gmail and press{' '}
+                  <kbd className="rounded bg-surface px-1 py-0.5 font-mono text-[10px] text-fg">
+                    {navigator.platform?.includes('Mac') ? '⌘V' : 'Ctrl+V'}
+                  </kbd>{' '}
+                  to paste.
+                </p>
+              )}
 
               <p className="mt-4 text-xs text-subtle">
                 Anyone with this link can join as the customer. The link expires when the session ends.
