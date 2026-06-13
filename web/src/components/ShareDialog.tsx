@@ -52,6 +52,17 @@ export function ShareDialog({ open, url, title, loading, error, onClose }: Props
     }
   }
 
+  function gmailComposeHref(): string {
+    if (!url) return '#';
+    const params = new URLSearchParams({
+      view: 'cm',
+      fs: '1',
+      su: 'Your video support call',
+      body: `Join your video support call:\n\n${url}`,
+    });
+    return `https://mail.google.com/mail/?${params.toString()}`;
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-fg/40 p-4 backdrop-blur-sm"
@@ -115,9 +126,9 @@ export function ShareDialog({ open, url, title, loading, error, onClose }: Props
                   <Button variant="secondary" className="w-full">SMS</Button>
                 </a>
                 <a
-                  href={`mailto:?subject=${encodeURIComponent('Your video support call')}&body=${encodeURIComponent(
-                    `Join your video support call: ${url ?? ''}`,
-                  )}`}
+                  href={gmailComposeHref()}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="w-full"
                 >
                   <Button variant="secondary" className="w-full">Email</Button>

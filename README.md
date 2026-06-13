@@ -135,13 +135,13 @@ AssistLens/
 
 ### Agent (`/`)
 
-- **Login:** `agent@assistlens.dev` / `demo-agent-pass` (configurable via env)
+- **Login:** `agent@assistlens.dev` / `agent1234` (configurable via env)
 - **Can:** create sessions, share invite links, join/end calls, start/stop recording, view own session history
 - **Cannot:** access `/admin` or admin API routes
 
 ### Admin (`/admin/login`)
 
-- **Login:** `admin@assistlens.dev` / `demo-admin-pass` (separate account, separate JWT)
+- **Login:** `admin@assistlens.dev` / `admin1234` (separate account, separate JWT)
 - **Can:** view all agents’ sessions, expand participant lists and event logs, forcibly end any session
 - **Cannot:** use agent login or access agent-only session ownership checks with an admin token on agent routes
 

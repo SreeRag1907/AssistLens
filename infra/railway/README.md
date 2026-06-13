@@ -145,10 +145,18 @@ LIVEKIT_WS_URL=ws://livekit-server.railway.internal:7880
 REDIS_URL=${{Redis.REDIS_URL}}
 S3_ACCESS_KEY=assistlens
 S3_SECRET_KEY=<same as MINIO_ROOT_PASSWORD>
-S3_EGRESS_ENDPOINT=http://minio.railway.internal:9000
 MINIO_BUCKET=recordings
 S3_REGION=us-east-1
 ```
+
+**S3 egress → MinIO** (pick one):
+
+| Variable | Value (URL only — no `S3_EGRESS_ENDPOINT=` prefix) |
+| --- | --- |
+| `S3_EGRESS_ENDPOINT` | `https://hopeful-consideration-production-1b98.up.railway.app` (public — use if `minio.railway.internal` fails) |
+| or | `http://minio.railway.internal:9000` (private — service must be named `minio`) |
+
+Set the same `S3_EGRESS_ENDPOINT` on **Render API**.
 
 6. **Deploy** → check logs:
 
