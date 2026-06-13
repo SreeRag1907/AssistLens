@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+*.log
+.env
+.env.local
+.DS_Store
+coverage/
+.vite/
+web/dist/
+api/dist/
+caddy_data/
+caddy_config/
+pgdata/
+miniodata/
