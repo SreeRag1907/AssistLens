@@ -74,9 +74,13 @@ export async function joinRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Lightweight pre-flight so the customer page can show a friendly error
-  // before requesting camera/mic permissions.
-  app.get('/api/invite/:token', async (req, reply) => {
-    const { token } = req.params as { token: string };
+  // before requesting camera/mic permissions. Token is a query param (not a
+  // path segment) because JWTs contain dots, which break Fastify path routing.
+  app.get('/api/invite', async (req, reply) => {
+    const token = (req.query as { token?: string }).token;
+    if (!token) {
+      return reply.code(400).send({ valid: false, reason: 'missing', message: 'Invite token is required.' });
+    }
     try {
       const invite = verifyInviteToken(token);
       const sRes = await query<SessionRow>('SELECT * FROM sessions WHERE id = $1', [invite.sid]);
@@ -85,7 +89,11 @@ export async function joinRoutes(app: FastifyInstance): Promise<void> {
       if (session.status === 'ended') return reply.code(410).send({ valid: false, reason: 'ended' });
       return { valid: true, sessionTitle: session.title ?? 'Video support session' };
     } catch {
-      return reply.code(401).send({ valid: false, reason: 'invalid' });
+      return reply.code(401).send({
+        valid: false,
+        reason: 'invalid',
+        message: 'This invite link is invalid or has expired. Please ask your support agent for a new link.',
+      });
     }
   });
 }

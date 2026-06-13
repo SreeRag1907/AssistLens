@@ -100,7 +100,7 @@ export function getRecordingUrl(token: string, id: string, rid: string) {
 // ── Customer join ────────────────────────────────────────────────────────────
 export function checkInvite(inviteToken: string) {
   return request<{ valid: boolean; sessionTitle?: string; reason?: string }>(
-    `/invite/${encodeURIComponent(inviteToken)}`,
+    `/invite?token=${encodeURIComponent(inviteToken)}`,
   );
 }
 export function join(inviteToken: string, name?: string) {
