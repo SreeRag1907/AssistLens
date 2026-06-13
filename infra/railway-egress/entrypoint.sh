@@ -73,4 +73,4 @@ echo "  S3: ${S3_ENDPOINT}/${S3_BUCKET}"
 echo ""
 
 export EGRESS_CONFIG_FILE=/etc/egress.yaml
-exec egress
+exec /tini -- egress

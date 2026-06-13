@@ -1,6 +1,6 @@
 FROM livekit/egress:latest
 
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Base image filesystem is read-only for RUN chmod — set mode at copy time.
+COPY --chmod=755 entrypoint.sh /railway-entrypoint.sh
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/railway-entrypoint.sh"]
