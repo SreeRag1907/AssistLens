@@ -4,6 +4,7 @@ import {
   DisconnectReason,
   Room,
   RoomEvent,
+  Track,
   VideoPresets,
   type RemoteParticipant,
 } from 'livekit-client';
@@ -172,7 +173,12 @@ export function useRoom({
   const toggleCamera = useCallback(async () => {
     if (!room) return;
     const next = !room.localParticipant.isCameraEnabled;
-    await room.localParticipant.setCameraEnabled(next, next ? defaultVideoOptions : undefined);
+    await room.localParticipant.setCameraEnabled(
+      next,
+      next
+        ? { facingMode: facingModeRef.current, resolution: VideoPresets.h720.resolution }
+        : undefined,
+    );
     setCameraEnabled(next);
     bump();
   }, [room, bump]);
@@ -181,11 +187,20 @@ export function useRoom({
     if (!room || !room.localParticipant.isCameraEnabled) return;
     const next = facingModeRef.current === 'user' ? 'environment' : 'user';
     facingModeRef.current = next;
-    await room.localParticipant.setCameraEnabled(false);
-    await room.localParticipant.setCameraEnabled(true, {
-      facingMode: next,
-      resolution: VideoPresets.h720.resolution,
-    });
+    const pub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+    const videoTrack = pub?.videoTrack;
+    if (videoTrack) {
+      await videoTrack.restartTrack({
+        facingMode: next,
+        resolution: VideoPresets.h720.resolution,
+      });
+    } else {
+      await room.localParticipant.setCameraEnabled(false);
+      await room.localParticipant.setCameraEnabled(true, {
+        facingMode: next,
+        resolution: VideoPresets.h720.resolution,
+      });
+    }
     bump();
   }, [room, bump]);
 

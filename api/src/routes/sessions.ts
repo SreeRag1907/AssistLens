@@ -6,7 +6,7 @@ import { config } from '../config.js';
 import { requireAgent } from '../guards.js';
 import { closeAllParticipants } from '../presence.js';
 import { registerParticipantJoin } from '../participants.js';
-import { isRecordingAvailable, mintAccessToken, closeRoom, startRoomRecording, stopRecording } from '../livekit.js';
+import { getRecordingStatus, isRecordingAvailable, mintAccessToken, closeRoom, startRoomRecording, stopRecording } from '../livekit.js';
 import { reconcileStaleRecordings } from '../recordings.js';
 import { generateInviteCode, inviteUrl, backfillInviteCodes } from '../inviteCode.js';
 import type { SessionRow, ParticipantRow, EventRow, RecordingRow, ChatMessageRow, ChatFileRow } from '../types.js';
@@ -172,12 +172,13 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/recording/status', async (req, reply) => {
     const agent = await requireAgent(req, reply);
     if (!agent) return;
-    const available = await isRecordingAvailable();
+    const { available, detail } = await getRecordingStatus();
     return {
       available,
       hint: available
         ? undefined
-        : 'Recording unavailable — deploy Egress on Railway and set RECORDING_ENABLED=true on Render, or start docker compose locally.',
+        : detail ??
+          'Recording unavailable — deploy Egress on Railway, set REDIS_URL on livekit-server, and RECORDING_ENABLED=true on Render.',
     };
   });
 
@@ -290,10 +291,9 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       ]);
       return { recording: rec.rows[0] };
     } catch (err) {
-      req.log.error({ err }, 'failed to start recording');
-      return reply
-        .code(503)
-        .send({ error: 'recording_unavailable', message: 'Recording service is not available.' });
+      const message = err instanceof Error ? err.message : 'Recording service is not available.';
+      req.log.error({ err, message }, 'failed to start recording');
+      return reply.code(503).send({ error: 'recording_unavailable', message });
     }
   });
 

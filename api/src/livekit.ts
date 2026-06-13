@@ -8,6 +8,7 @@ import {
   S3Upload,
 } from 'livekit-server-sdk';
 import { config } from './config.js';
+import { ensureBuckets } from './s3.js';
 import type { Role } from './types.js';
 
 const { apiKey, apiSecret, url } = config.livekit;
@@ -52,7 +53,17 @@ export async function closeRoom(room: string): Promise<void> {
   }
 }
 
+function egressErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === 'object' && err !== null && 'message' in err) {
+    const msg = (err as { message?: unknown }).message;
+    if (typeof msg === 'string' && msg) return msg;
+  }
+  return 'Recording service is not available.';
+}
+
 export async function startRoomRecording(room: string): Promise<{ egressId: string; objectKey: string }> {
+  await ensureBuckets();
   const objectKey = `${room}/${Date.now()}.mp4`;
   const output = new EncodedFileOutput({
     fileType: EncodedFileType.MP4,
@@ -71,8 +82,17 @@ export async function startRoomRecording(room: string): Promise<{ egressId: stri
     },
   });
 
-  const info = await egressClient.startRoomCompositeEgress(room, { file: output });
-  return { egressId: info.egressId, objectKey };
+  try {
+    const info = await egressClient.startRoomCompositeEgress(room, { file: output });
+    return { egressId: info.egressId, objectKey };
+  } catch (err) {
+    const detail = egressErrorMessage(err);
+    const hint =
+      /egress|no response|unavailable|not found/i.test(detail)
+        ? ' Check Railway: egress service Active, REDIS_URL on livekit-server + egress, and S3_EGRESS_ENDPOINT=http://minio.railway.internal:9000 on Render.'
+        : '';
+    throw new Error(`${detail}${hint}`);
+  }
 }
 
 export async function stopRecording(egressId: string): Promise<void> {
@@ -82,20 +102,34 @@ export async function stopRecording(egressId: string): Promise<void> {
 let recordingAvailableCache: { value: boolean; expires: number } | null = null;
 const RECORDING_CACHE_MS = 10_000;
 
-/** True when LiveKit Egress is reachable (recording stack running). Cached 10s. */
-export async function isRecordingAvailable(): Promise<boolean> {
-  if (config.recordingEnabled) return true;
+export interface RecordingStatus {
+  available: boolean;
+  detail?: string;
+}
 
+/** True when LiveKit Egress API is reachable. Cached 10s. */
+export async function getRecordingStatus(): Promise<RecordingStatus> {
   const now = Date.now();
   if (recordingAvailableCache && now < recordingAvailableCache.expires) {
-    return recordingAvailableCache.value;
+    return { available: recordingAvailableCache.value };
   }
   try {
     await egressClient.listEgress();
     recordingAvailableCache = { value: true, expires: now + RECORDING_CACHE_MS };
-    return true;
+    return { available: true };
   } catch (err) {
-    recordingAvailableCache = { value: false, expires: now + RECORDING_CACHE_MS };
-    return false;
+    const detail = egressErrorMessage(err);
+    const available = config.recordingEnabled;
+    recordingAvailableCache = { value: available, expires: now + RECORDING_CACHE_MS };
+    return {
+      available,
+      detail: available
+        ? undefined
+        : detail || 'Could not reach LiveKit Egress API. Deploy egress on Railway and set REDIS_URL on livekit-server.',
+    };
   }
+}
+
+export async function isRecordingAvailable(): Promise<boolean> {
+  return (await getRecordingStatus()).available;
 }

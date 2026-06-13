@@ -25,13 +25,16 @@ S3_REGION="${S3_REGION:-us-east-1}"
 
 REDIS_ADDRESS="${REDIS_ADDRESS:-}"
 REDIS_PASSWORD="${REDIS_PASSWORD:-}"
+REDIS_USERNAME="${REDIS_USERNAME:-}"
 
 if [ -n "${REDIS_URL:-}" ]; then
-  REDIS_PASSWORD=$(echo "$REDIS_URL" | sed -n 's|redis://[^:]*:\([^@]*\)@.*|\1|p')
-  REDIS_ADDRESS=$(echo "$REDIS_URL" | sed -n 's|redis://[^@]*@\(.*\)|\1|p')
-  if [ -z "$REDIS_ADDRESS" ]; then
+  # redis://user:pass@host:6379  or  redis://:pass@host:6379  or  redis://host:6379
+  if echo "$REDIS_URL" | grep -q '@'; then
+    REDIS_USERNAME=$(echo "$REDIS_URL" | sed -n 's|redis://\([^:]*\):.*|\1|p')
+    REDIS_PASSWORD=$(echo "$REDIS_URL" | sed -n 's|redis://[^:]*:\([^@]*\)@.*|\1|p')
+    REDIS_ADDRESS=$(echo "$REDIS_URL" | sed -n 's|redis://[^@]*@\(.*\)|\1|p')
+  else
     REDIS_ADDRESS=$(echo "$REDIS_URL" | sed -n 's|redis://\(.*\)|\1|p')
-    REDIS_PASSWORD=""
   fi
 fi
 
@@ -41,10 +44,23 @@ if [ -z "$REDIS_ADDRESS" ]; then
 fi
 
 REDIS_YAML="  address: ${REDIS_ADDRESS}"
+if [ -n "$REDIS_USERNAME" ] && [ "$REDIS_USERNAME" != "$REDIS_PASSWORD" ]; then
+  REDIS_YAML="${REDIS_YAML}
+  username: ${REDIS_USERNAME}"
+fi
 if [ -n "$REDIS_PASSWORD" ]; then
   REDIS_YAML="${REDIS_YAML}
   password: ${REDIS_PASSWORD}"
 fi
+
+# ws:// internal URLs require insecure: true (LiveKit docs).
+INSECURE="${EGRESS_INSECURE:-true}"
+# Railway has no --cap-add SYS_ADMIN; keep Chrome sandbox off (default, set explicitly).
+CHROME_SANDBOX="${EGRESS_ENABLE_CHROME_SANDBOX:-false}"
+# Default room composite wants ~3 CPU; Railway hobby plans have 1 vCPU — lower cost so jobs are accepted.
+ROOM_COMPOSITE_CPU="${EGRESS_ROOM_COMPOSITE_CPU:-0.5}"
+MAX_CPU_UTIL="${EGRESS_MAX_CPU_UTILIZATION:-0.9}"
+HEALTH_PORT="${EGRESS_HEALTH_PORT:-8081}"
 
 EGRESS_CONFIG="/tmp/egress.yaml"
 
@@ -52,8 +68,14 @@ cat > "${EGRESS_CONFIG}" <<EOF
 api_key: ${LIVEKIT_API_KEY}
 api_secret: ${LIVEKIT_API_SECRET}
 ws_url: ${LIVEKIT_WS_URL}
+insecure: ${INSECURE}
+enable_chrome_sandbox: ${CHROME_SANDBOX}
+health_port: ${HEALTH_PORT}
 redis:
 ${REDIS_YAML}
+cpu_cost:
+  room_composite_cpu_cost: ${ROOM_COMPOSITE_CPU}
+  max_cpu_utilization: ${MAX_CPU_UTIL}
 s3:
   access_key: ${S3_ACCESS_KEY}
   secret: ${S3_SECRET_KEY}

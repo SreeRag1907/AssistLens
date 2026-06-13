@@ -3,6 +3,7 @@ api_key: devkey
 api_secret: devsecretdevsecretdevsecretdevse
 # LiveKit Egress — shares LiveKit's network stack (see docker-compose network_mode).
 ws_url: ws://127.0.0.1:7880
+insecure: true
 redis:
   address: redis:6379
 s3:

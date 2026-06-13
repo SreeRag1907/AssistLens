@@ -88,26 +88,28 @@ fi
 REDIS_YAML=""
 if [ -n "${REDIS_URL:-}" ]; then
   REDIS_PASSWORD=$(echo "$REDIS_URL" | sed -n 's|redis://[^:]*:\([^@]*\)@.*|\1|p')
+  REDIS_USERNAME=$(echo "$REDIS_URL" | sed -n 's|redis://\([^:]*\):.*|\1|p')
   REDIS_ADDRESS=$(echo "$REDIS_URL" | sed -n 's|redis://[^@]*@\(.*\)|\1|p')
   if [ -z "$REDIS_ADDRESS" ]; then
     REDIS_ADDRESS=$(echo "$REDIS_URL" | sed -n 's|redis://\(.*\)|\1|p')
     REDIS_PASSWORD=""
+    REDIS_USERNAME=""
   fi
   echo "Redis enabled: ${REDIS_ADDRESS} (required for Egress recording)"
   REDIS_YAML="redis:
   address: ${REDIS_ADDRESS}"
+  if [ -n "${REDIS_USERNAME:-}" ] && [ "$REDIS_USERNAME" != "$REDIS_PASSWORD" ]; then
+    REDIS_YAML="${REDIS_YAML}
+  username: ${REDIS_USERNAME}"
+  fi
   if [ -n "$REDIS_PASSWORD" ]; then
     REDIS_YAML="${REDIS_YAML}
   password: ${REDIS_PASSWORD}"
   fi
-elif [ -n "${REDIS_ADDRESS:-}" ]; then
-  echo "Redis enabled: ${REDIS_ADDRESS}"
-  REDIS_YAML="redis:
-  address: ${REDIS_ADDRESS}"
-  if [ -n "${REDIS_PASSWORD:-}" ]; then
-    REDIS_YAML="${REDIS_YAML}
-  password: ${REDIS_PASSWORD}"
-  fi
+else
+  echo "WARNING: REDIS_URL is not set — Egress recording will NOT work."
+  echo "         Add REDIS_URL (reference your Redis service) and redeploy."
+  REDIS_YAML=""
 fi
 
 cat > /etc/livekit.yaml <<EOF

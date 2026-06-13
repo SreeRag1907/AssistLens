@@ -139,6 +139,10 @@ Starting LiveKit Egress
   S3: http://minio.railway.internal:9000/recordings
 ```
 
+7. **Settings → Resources:** give egress at least **1 vCPU / 1 GB RAM** (2 vCPU recommended for room composite).
+
+The entrypoint sets `insecure: true` (required for `ws://`) and lowers `room_composite_cpu_cost` so 1-vCPU Railway plans accept jobs.
+
 ---
 
 ## Step 5 — Render API environment
@@ -159,6 +163,9 @@ S3_SECRET_KEY=<same as MINIO_ROOT_PASSWORD>
 S3_REGION=us-east-1
 MINIO_BUCKET=recordings
 FILES_BUCKET=files
+
+# Enable record button when Egress + Redis are deployed on Railway
+RECORDING_ENABLED=true
 ```
 
 **Important:** `S3_ENDPOINT` = public HTTPS (Render → MinIO). `S3_EGRESS_ENDPOINT` = private HTTP (Egress → MinIO).
@@ -183,6 +190,7 @@ Check Render logs if recording fails: `isRecordingAvailable` calls LiveKit Egres
 
 | Symptom | Fix |
 | --- | --- |
+| **`no response from servers`** on Record | Egress not registered in Redis. Redeploy **egress** after this fix (`insecure: true` + lower CPU cost). Confirm **same `REDIS_URL`** on livekit-server + egress. Check egress logs for `connecting to redis`. |
 | File upload fails | `S3_ENDPOINT` must be MinIO **public** HTTPS URL; keys must match |
 | Record button grey / unavailable | Egress not running or Redis missing on livekit-server; redeploy both |
 | Recording stuck `processing` | Check egress logs; verify `S3_EGRESS_ENDPOINT` is internal MinIO URL |
