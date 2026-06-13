@@ -1,18 +1,24 @@
-# ── EDIT BEFORE DEPLOY ──────────────────────────────────────────────────────
-# Replace assistlens-api.onrender.com with YOUR Render API hostname (no https).
+# Reference only — Railway deploys use entrypoint.sh to generate /etc/livekit.yaml at startup.
+#
+# On Railway (no UDP):
+#   - Signaling: port 7880 via HTTPS domain
+#   - Media: TCP proxy on application port 7882 (force_tcp, no TURN/UDP)
+#
+# See README.md in this folder for Railway setup steps.
+
 port: 7880
 bind_addresses:
-  - ""
+  - "0.0.0.0"
 
 rtc:
   tcp_port: 7881
-  port_range_start: 50000
-  port_range_end: 50100
+  port_range_start: 0
+  port_range_end: 0
   use_external_ip: true
+  force_tcp: true
 
 turn:
-  enabled: true
-  udp_port: 7882
+  enabled: false
 
 webhook:
   api_key: devkey
