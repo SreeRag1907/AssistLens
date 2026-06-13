@@ -1,25 +1,36 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { login, setAgentToken, ApiError } from '../lib/api';
+import { registerAgent, setAgentToken, ApiError } from '../lib/api';
 import { Button, Field, Logo, ThemeToggle } from '../components/ui';
 
-export function Login() {
+export function Register() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (password !== confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+
     setBusy(true);
     try {
-      const res = await login(email, password);
+      const res = await registerAgent(email, password);
       setAgentToken(res.token, res.agent.email);
       navigate('/agent');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Login failed.');
+      setError(err instanceof ApiError ? err.message : 'Registration failed.');
     } finally {
       setBusy(false);
     }
@@ -27,39 +38,37 @@ export function Login() {
 
   return (
     <div className="grid min-h-[100dvh] lg:grid-cols-[1.1fr_1fr]">
-      {/* Editorial panel */}
       <div className="auth-panel relative hidden flex-col justify-between p-12 text-stone-100 lg:flex">
         <Logo size={34} />
         <div className="max-w-md">
-          <p className="section-label text-stone-400">Visual customer support</p>
+          <p className="section-label text-stone-400">For support teams</p>
           <h1 className="mt-4 text-[2.5rem] font-extrabold leading-[1.1] tracking-tight">
-            See the problem.
+            Your own console.
             <br />
-            <span className="text-accent">Solve it faster.</span>
+            <span className="text-accent">Your own customers.</span>
           </h1>
           <p className="mt-5 text-base leading-relaxed text-stone-400">
-            Live video sessions with no app install. Share a link, join from any browser, troubleshoot with
-            chat and file sharing — routed through your own infrastructure.
+            Each agent gets a private workspace — create sessions, share invite links by SMS or email, and
+            help customers over live video. Your admin oversees all sessions company-wide.
           </p>
           <ul className="mt-8 space-y-3 text-sm text-stone-300">
             <li className="flex items-center gap-3">
               <span className="h-1 w-1 rounded-full bg-accent" />
-              Self-hosted SFU — no third-party video API
+              Only you see your session history
             </li>
             <li className="flex items-center gap-3">
               <span className="h-1 w-1 rounded-full bg-accent" />
-              Pre-join device check before every call
+              Customers join with a link — no signup
             </li>
             <li className="flex items-center gap-3">
               <span className="h-1 w-1 rounded-full bg-accent" />
-              Recording, chat, and file sharing built in
+              Chat, files, and recording built in
             </li>
           </ul>
         </div>
-        <p className="text-xs text-stone-500">AssistLens · Real-time support platform</p>
+        <p className="text-xs text-stone-500">AssistLens · Agent registration</p>
       </div>
 
-      {/* Sign-in — theme toggle only affects this column */}
       <div className="auth-form-panel relative flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 lg:justify-end">
           <div className="lg:hidden">
@@ -71,32 +80,46 @@ export function Login() {
         <div className="flex flex-1 items-center justify-center px-5 pb-10">
           <div className="w-full max-w-[380px] animate-fade-in">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold tracking-tight text-fg">Agent sign in</h2>
-              <p className="mt-1.5 text-sm text-muted">Access your support console.</p>
+              <h2 className="text-2xl font-bold tracking-tight text-fg">Create agent account</h2>
+              <p className="mt-1.5 text-sm text-muted">Register to start supporting customers on video.</p>
             </div>
 
             <form onSubmit={submit} className="space-y-5">
               <div>
-                <label className="label" htmlFor="email">Email</label>
+                <label className="label" htmlFor="reg-email">Work email</label>
                 <Field
-                  id="email"
+                  id="reg-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="username"
+                  autoComplete="email"
                   placeholder="you@company.com"
                   required
                 />
               </div>
               <div>
-                <label className="label" htmlFor="password">Password</label>
+                <label className="label" htmlFor="reg-password">Password</label>
                 <Field
-                  id="password"
+                  id="reg-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  placeholder="Enter password"
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                  minLength={8}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="reg-confirm">Confirm password</label>
+                <Field
+                  id="reg-confirm"
+                  type="password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  autoComplete="new-password"
+                  placeholder="Repeat password"
+                  minLength={8}
                   required
                 />
               </div>
@@ -106,20 +129,14 @@ export function Login() {
                 </p>
               )}
               <Button type="submit" disabled={busy} className="w-full py-2.5">
-                {busy ? 'Signing in…' : 'Continue'}
+                {busy ? 'Creating account…' : 'Create account'}
               </Button>
             </form>
 
-            <p className="mt-6 text-center text-xs text-subtle">
-              New to AssistLens?{' '}
-              <Link to="/register" className="font-semibold text-brand hover:underline">
-                Create an agent account
-              </Link>
-            </p>
-            <p className="mt-3 text-center text-xs text-subtle">
-              Customers join via invite link — no account required.{' '}
-              <Link to="/admin/login" className="font-semibold text-muted hover:text-fg">
-                Admin access
+            <p className="mt-8 text-center text-xs text-subtle">
+              Already have an account?{' '}
+              <Link to="/" className="font-semibold text-brand hover:underline">
+                Sign in
               </Link>
             </p>
           </div>

@@ -12,16 +12,22 @@ import type {
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
 const TOKEN_KEY = 'assistlens.agent.token';
+const AGENT_EMAIL_KEY = 'assistlens.agent.email';
 const ADMIN_TOKEN_KEY = 'assistlens.admin.token';
 
 export function getAgentToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
-export function setAgentToken(token: string): void {
+export function getAgentEmail(): string | null {
+  return localStorage.getItem(AGENT_EMAIL_KEY);
+}
+export function setAgentToken(token: string, email?: string): void {
   localStorage.setItem(TOKEN_KEY, token);
+  if (email) localStorage.setItem(AGENT_EMAIL_KEY, email);
 }
 export function clearAgentToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(AGENT_EMAIL_KEY);
 }
 
 export function getAdminToken(): string | null {
@@ -61,6 +67,13 @@ async function request<T>(path: string, opts: RequestInit & { token?: string } =
 // ── Auth ──────────────────────────────────────────────────────────────────
 export function login(email: string, password: string) {
   return request<{ token: string; agent: { id: string; email: string } }>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function registerAgent(email: string, password: string) {
+  return request<{ token: string; agent: { id: string; email: string } }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });

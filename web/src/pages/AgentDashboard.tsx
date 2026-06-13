@@ -4,6 +4,7 @@ import {
   clearAgentToken,
   createSession,
   endSession,
+  getAgentEmail,
   getAgentToken,
   getInvite,
   listSessions,
@@ -141,6 +142,7 @@ export function AgentDashboard() {
   return (
     <div className="min-h-[100dvh] bg-bg text-fg">
       <AppHeader
+        subtitle={getAgentEmail() ?? 'Agent console'}
         actions={
           <>
             <ThemeToggle />
@@ -153,9 +155,11 @@ export function AgentDashboard() {
 
       <PageMain className="space-y-10">
         <div className="animate-fade-in">
-          <p className="section-label">Agent console</p>
+          <p className="section-label">Your workspace</p>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Sessions</h1>
-          <p className="mt-1 text-sm text-muted">Create a session and share the invite link with your customer.</p>
+          <p className="mt-1 text-sm text-muted">
+            Create a session, then share the invite link with your customer by SMS or email.
+          </p>
         </div>
 
         {/* New session toolbar */}

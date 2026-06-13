@@ -52,13 +52,25 @@ body {
   padding-bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
 }
 
-/* Subtle grid texture for auth panels */
+/* Left auth editorial panel — always dark, independent of global theme toggle */
 .auth-panel {
-  background-color: rgb(var(--fg));
+  --brand: 20 184 166;
+  --brand-strong: 13 148 136;
+  --brand-fg: 255 255 255;
+  --accent: 45 212 191;
+
+  background-color: rgb(12 10 9);
   background-image:
     linear-gradient(rgb(255 255 255 / 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgb(255 255 255 / 0.03) 1px, transparent 1px);
   background-size: 48px 48px;
+  color: rgb(245 245 244);
+}
+
+/* Right auth form column — follows light/dark theme from html.dark */
+.auth-form-panel {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--fg));
 }
 
 @layer components {

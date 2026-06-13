@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { getAdminToken, getAgentToken } from './lib/api';
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
 import { AdminLogin } from './pages/AdminLogin';
 import { AgentDashboard } from './pages/AgentDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
@@ -21,6 +22,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={getAgentToken() ? <Navigate to="/agent" replace /> : <Login />} />
+      <Route path="/register" element={getAgentToken() ? <Navigate to="/agent" replace /> : <Register />} />
       <Route path="/admin/login" element={getAdminToken() ? <Navigate to="/admin" replace /> : <AdminLogin />} />
       <Route
         path="/agent"

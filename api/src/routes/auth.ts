@@ -10,7 +10,42 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8, 'Password must be at least 8 characters.'),
+});
+
 export async function authRoutes(app: FastifyInstance): Promise<void> {
+  // Self-service signup for support agents (not admins).
+  app.post('/api/auth/register', async (req, reply) => {
+    const parsed = registerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message ?? 'Invalid registration details.';
+      return reply.code(400).send({ error: 'bad_request', message: msg });
+    }
+    const { email, password } = parsed.data;
+
+    const existing = await query<AgentRow>('SELECT * FROM agents WHERE email = $1', [email]);
+    const taken = existing.rows[0];
+    if (taken) {
+      const message = taken.is_admin
+        ? 'This email is reserved for admin access. Use a different work email or contact your administrator.'
+        : 'An account with this email already exists. Sign in instead.';
+      return reply.code(409).send({ error: 'email_in_use', message });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+    const res = await query<Pick<AgentRow, 'id' | 'email'>>(
+      `INSERT INTO agents (email, password_hash, is_admin)
+       VALUES ($1, $2, false)
+       RETURNING id, email`,
+      [email, hash],
+    );
+    const user = res.rows[0]!;
+    const token = signStaffToken({ sub: user.id, email: user.email, role: 'agent' });
+    return reply.code(201).send({ token, agent: { id: user.id, email: user.email } });
+  });
+
   // Agent login — support agents only (not admins).
   app.post('/api/auth/login', async (req, reply) => {
     const parsed = loginSchema.safeParse(req.body);
