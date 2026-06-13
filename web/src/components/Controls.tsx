@@ -5,6 +5,7 @@ interface Props {
   cameraEnabled: boolean;
   onToggleMic: () => void;
   onToggleCamera: () => void;
+  onFlipCamera?: () => void;
   onLeave: () => void;
   leaveLabel: string;
   onToggleRecording?: () => void;
@@ -64,6 +65,7 @@ export function Controls({
   cameraEnabled,
   onToggleMic,
   onToggleCamera,
+  onFlipCamera,
   onLeave,
   leaveLabel,
   onToggleRecording,
@@ -74,7 +76,7 @@ export function Controls({
   onToggleChat,
   unreadCount,
 }: Props) {
-  const count = 3 + (onToggleChat ? 1 : 0) + (onToggleRecording ? 1 : 0) + 1;
+  const count = 3 + (onFlipCamera ? 1 : 0) + (onToggleChat ? 1 : 0) + (onToggleRecording ? 1 : 0) + 1;
 
   return (
     <div className="safe-bottom w-full px-2 py-2 sm:px-4 sm:py-3">
@@ -100,6 +102,15 @@ export function Controls({
           {cameraEnabled ? <CameraIcon /> : <CameraOffIcon />}
         </IconButton>
 
+        {onFlipCamera && cameraEnabled && (
+          <IconButton onClick={onFlipCamera} label="Switch camera (front/back)" active>
+            <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M7 8h10l-2-2m2 2-2 2 2M17 16H7l2 2m-2-2 2-2-2-2" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </IconButton>
+        )}
+
         {onToggleChat && (
           <IconButton onClick={onToggleChat} label="Open chat" active badge={unreadCount}>
             <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-6 sm:w-6" fill="currentColor" aria-hidden>
@@ -113,7 +124,7 @@ export function Controls({
             onClick={recordingBusy || !recordingAvailable ? () => {} : onToggleRecording}
             label={
               !recordingAvailable
-                ? 'Recording unavailable — start Docker'
+                ? 'Recording unavailable — check Egress on Railway'
                 : recording
                   ? `Stop recording (${recordingSecs}s)`
                   : 'Start recording'

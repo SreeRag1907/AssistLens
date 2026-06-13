@@ -4,6 +4,7 @@ import {
   DisconnectReason,
   Room,
   RoomEvent,
+  VideoPresets,
   type RemoteParticipant,
 } from 'livekit-client';
 import type { DataPayload } from './types';
@@ -29,6 +30,7 @@ export interface UseRoomResult {
   tick: number; // bumps whenever participants/tracks change, to drive re-renders
   toggleMic: () => Promise<void>;
   toggleCamera: () => Promise<void>;
+  flipCamera: () => Promise<void>;
   sendData: (payload: DataPayload) => void;
   disconnect: () => void;
 }
@@ -36,7 +38,12 @@ export interface UseRoomResult {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-// Plain-language mapping for the (rare) statuses a customer might see.
+const defaultVideoOptions = {
+  facingMode: 'user' as const,
+  resolution: VideoPresets.h720.resolution,
+};
+
+// Plain-language mapping
 export function statusLabel(status: CallStatus): string {
   switch (status) {
     case 'connecting':
@@ -68,6 +75,7 @@ export function useRoom({
   const [micEnabled, setMicEnabled] = useState(initialMicEnabled);
   const [cameraEnabled, setCameraEnabled] = useState(initialCameraEnabled);
   const [tick, setTick] = useState(0);
+  const facingModeRef = useRef<'user' | 'environment'>('user');
 
   const onDataRef = useRef(onData);
   const onSessionEndedRef = useRef(onSessionEnded);
@@ -129,7 +137,7 @@ export function useRoom({
         setRoom(r);
         try {
           await r.localParticipant.setMicrophoneEnabled(initialMicEnabled);
-          await r.localParticipant.setCameraEnabled(initialCameraEnabled);
+          await r.localParticipant.setCameraEnabled(initialCameraEnabled, defaultVideoOptions);
           setMicEnabled(initialMicEnabled);
           setCameraEnabled(initialCameraEnabled);
         } catch {
@@ -164,8 +172,20 @@ export function useRoom({
   const toggleCamera = useCallback(async () => {
     if (!room) return;
     const next = !room.localParticipant.isCameraEnabled;
-    await room.localParticipant.setCameraEnabled(next);
+    await room.localParticipant.setCameraEnabled(next, next ? defaultVideoOptions : undefined);
     setCameraEnabled(next);
+    bump();
+  }, [room, bump]);
+
+  const flipCamera = useCallback(async () => {
+    if (!room || !room.localParticipant.isCameraEnabled) return;
+    const next = facingModeRef.current === 'user' ? 'environment' : 'user';
+    facingModeRef.current = next;
+    await room.localParticipant.setCameraEnabled(false);
+    await room.localParticipant.setCameraEnabled(true, {
+      facingMode: next,
+      resolution: VideoPresets.h720.resolution,
+    });
     bump();
   }, [room, bump]);
 
@@ -190,6 +210,7 @@ export function useRoom({
     tick,
     toggleMic,
     toggleCamera,
+    flipCamera,
     sendData,
     disconnect,
   };

@@ -82,8 +82,10 @@ export async function stopRecording(egressId: string): Promise<void> {
 let recordingAvailableCache: { value: boolean; expires: number } | null = null;
 const RECORDING_CACHE_MS = 10_000;
 
-/** True when LiveKit Egress is reachable (recording stack running). Cached 60s. */
+/** True when LiveKit Egress is reachable (recording stack running). Cached 10s. */
 export async function isRecordingAvailable(): Promise<boolean> {
+  if (config.recordingEnabled) return true;
+
   const now = Date.now();
   if (recordingAvailableCache && now < recordingAvailableCache.expires) {
     return recordingAvailableCache.value;
@@ -92,7 +94,7 @@ export async function isRecordingAvailable(): Promise<boolean> {
     await egressClient.listEgress();
     recordingAvailableCache = { value: true, expires: now + RECORDING_CACHE_MS };
     return true;
-  } catch {
+  } catch (err) {
     recordingAvailableCache = { value: false, expires: now + RECORDING_CACHE_MS };
     return false;
   }

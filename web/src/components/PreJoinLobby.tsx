@@ -27,14 +27,18 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
   });
   const [audioId, setAudioId] = useState('');
   const [videoId, setVideoId] = useState('');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [permError, setPermError] = useState<string | null>(null);
 
-  const startPreview = useCallback(async (audio?: string, video?: string) => {
+  const startPreview = useCallback(async (audio?: string, video?: string, facing?: 'user' | 'environment') => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
+    const mode = facing ?? facingMode;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: audio ? { deviceId: { exact: audio } } : true,
-        video: video ? { deviceId: { exact: video } } : true,
+        video: video
+          ? { deviceId: { exact: video } }
+          : { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } },
       });
       streamRef.current = stream;
       if (videoRef.current) {
@@ -53,7 +57,7 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
     } catch {
       setPermError('Allow camera and microphone access to preview before joining.');
     }
-  }, [micOn, camOn]);
+  }, [micOn, camOn, facingMode]);
 
   useEffect(() => {
     startPreview();
@@ -78,6 +82,13 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
     setAudioId(aId);
     setVideoId(vId);
     startPreview(aId || undefined, vId || undefined);
+  }
+
+  function flipCamera() {
+    const next = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(next);
+    setVideoId('');
+    startPreview(audioId || undefined, undefined, next);
   }
 
   function handleJoin() {
@@ -109,7 +120,7 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
           autoPlay
           playsInline
           muted
-          className={`h-full w-full object-cover mirror ${camOn ? '' : 'opacity-0'}`}
+          className={`h-full w-full object-contain mirror ${camOn ? '' : 'opacity-0'}`}
         />
 
         {/* Status chips */}
@@ -135,6 +146,14 @@ export function PreJoinLobby({ sessionTitle, name, onNameChange, busy, error, on
             label={camOn ? 'Turn off camera' : 'Turn on camera'}
             kind="cam"
           />
+          {camOn && (
+            <MediaToggle
+              active
+              onClick={flipCamera}
+              label="Switch camera (front/back)"
+              kind="flip"
+            />
+          )}
         </div>
       </div>
 
@@ -194,7 +213,7 @@ function MediaToggle({
   active: boolean;
   onClick: () => void;
   label: string;
-  kind: 'mic' | 'cam';
+  kind: 'mic' | 'cam' | 'flip';
 }) {
   return (
     <button
@@ -210,6 +229,10 @@ function MediaToggle({
     >
       {kind === 'mic' ? (
         active ? <MicIcon className="h-5 w-5" /> : <MicOffIcon className="h-5 w-5" />
+      ) : kind === 'flip' ? (
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <path d="M7 8h10l-2-2m2 2-2 2 2M17 16H7l2 2m-2-2 2-2-2-2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       ) : active ? (
         <CameraIcon className="h-5 w-5" />
       ) : (

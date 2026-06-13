@@ -46,6 +46,9 @@ export const config = {
 
   reconnectGraceSeconds: Number(process.env.RECONNECT_GRACE_SECONDS ?? 30),
   inviteTtlSeconds: Number(process.env.INVITE_TTL_SECONDS ?? 86400),
+
+  /** Set RECORDING_ENABLED=true on Render when Egress + Redis are deployed. */
+  recordingEnabled: process.env.RECORDING_ENABLED === 'true',
 };
 
 export type AppConfig = typeof config;

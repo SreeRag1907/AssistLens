@@ -177,7 +177,7 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       available,
       hint: available
         ? undefined
-        : 'Start the recording stack: docker compose -f docker-compose.recording.yml up',
+        : 'Recording unavailable — deploy Egress on Railway and set RECORDING_ENABLED=true on Render, or start docker compose locally.',
     };
   });
 

@@ -396,6 +396,7 @@ export function CallStage(props: Props) {
             cameraEnabled={room.cameraEnabled}
             onToggleMic={room.toggleMic}
             onToggleCamera={room.toggleCamera}
+            onFlipCamera={room.cameraEnabled ? room.flipCamera : undefined}
             onLeave={leave}
             leaveLabel={role === 'agent' ? 'End' : 'Leave'}
             onToggleChat={() => setChatOpen((o) => !o)}
