@@ -23,18 +23,30 @@ LOG_LEVEL="${EGRESS_LOG_LEVEL:-info}"
 S3_ACCESS_KEY="${S3_ACCESS_KEY:-${MINIO_ROOT_USER:-assistlens}}"
 S3_SECRET_KEY="${S3_SECRET_KEY:-${MINIO_ROOT_PASSWORD:-assistlens-minio}}"
 S3_ENDPOINT="${S3_EGRESS_ENDPOINT:-http://minio.railway.internal:9000}"
+# Common paste mistake: value is "S3_EGRESS_ENDPOINT=https://..." instead of just the URL.
+S3_ENDPOINT="${S3_ENDPOINT#S3_EGRESS_ENDPOINT=}"
+S3_ENDPOINT="${S3_ENDPOINT#s3_egress_endpoint=}"
+S3_ENDPOINT="$(echo "$S3_ENDPOINT" | xargs)"
+if [[ "$S3_ENDPOINT" != http://* && "$S3_ENDPOINT" != https://* ]]; then
+  if [[ "$S3_ENDPOINT" == *railway.app* ]]; then
+    S3_ENDPOINT="https://${S3_ENDPOINT}"
+  else
+    S3_ENDPOINT="http://${S3_ENDPOINT}"
+  fi
+fi
 S3_BUCKET="${MINIO_BUCKET:-recordings}"
 S3_REGION="${S3_REGION:-us-east-1}"
 
 S3_HOST=$(echo "$S3_ENDPOINT" | sed -n 's|https\?://\([^:/]*\).*|\1|p')
-if [ -n "$S3_HOST" ] && ! getent ahostsv4 "$S3_HOST" >/dev/null 2>&1 && ! getent hosts "$S3_HOST" >/dev/null 2>&1; then
+# Only validate private Railway DNS; public *.railway.app URLs skip this check.
+if [[ "$S3_HOST" == *.railway.internal ]] && ! getent ahostsv4 "$S3_HOST" >/dev/null 2>&1 && ! getent hosts "$S3_HOST" >/dev/null 2>&1; then
   echo "ERROR: Cannot resolve MinIO host '${S3_HOST}' from this container."
-  echo "       Railway private DNS is {service-name}.railway.internal"
-  echo "       Fix: rename your MinIO service to exactly 'minio' (Settings → Service name), OR set:"
-  echo "         S3_EGRESS_ENDPOINT=http://<your-minio-service-name>.railway.internal:9000"
-  echo "       on BOTH egress and Render (S3_EGRESS_ENDPOINT)."
+  echo "       Use the public MinIO URL instead:"
+  echo "         S3_EGRESS_ENDPOINT=https://hopeful-consideration-production-1b98.up.railway.app"
+  echo "       (Variable VALUE only — do not include 'S3_EGRESS_ENDPOINT=' in the value.)"
   exit 1
 fi
+echo "MinIO endpoint for egress: ${S3_ENDPOINT}"
 
 REDIS_ADDRESS="${REDIS_ADDRESS:-}"
 REDIS_PASSWORD="${REDIS_PASSWORD:-}"

@@ -90,9 +90,11 @@ export async function startRoomRecording(room: string): Promise<{ egressId: stri
     const hint =
       /egress not connected|redis required/i.test(detail)
         ? ' LiveKit is not using Redis. Add LIVEKIT_REDIS_ADDRESS=redis.railway.internal:6379 (+ USERNAME/PASSWORD) on livekit-server, or set Root Directory to infra/livekit-railway and redeploy. Logs must NOT say "using single-node routing" only.'
-        : /egress|no response|unavailable|not found/i.test(detail)
-          ? ' Confirm egress is Active and uses the same REDIS_URL as livekit-server.'
-          : '';
+        : /no response from servers/i.test(detail)
+          ? ' No egress worker is registered in Redis. In Railway: open egress → confirm status Active and deploy logs show "service ready". Both egress and livekit-server need REDIS_URL=${{Redis.REDIS_URL}} (same Redis). Redeploy egress first, wait ~30s, then try Record on a new session.'
+          : /egress|unavailable|not found/i.test(detail)
+            ? ' Confirm egress is Active and uses the same REDIS_URL as livekit-server.'
+            : '';
     throw new Error(`${detail}${hint}`);
   }
 }
