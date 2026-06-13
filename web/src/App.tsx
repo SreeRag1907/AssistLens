@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { getAgentToken } from './lib/api';
+import { getAdminToken, getAgentToken } from './lib/api';
 import { Login } from './pages/Login';
+import { AdminLogin } from './pages/AdminLogin';
 import { AgentDashboard } from './pages/AgentDashboard';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AgentCall } from './pages/AgentCall';
@@ -11,10 +12,15 @@ function RequireAgent({ children }: { children: JSX.Element }) {
   return getAgentToken() ? children : <Navigate to="/" replace />;
 }
 
+function RequireAdmin({ children }: { children: JSX.Element }) {
+  return getAdminToken() ? children : <Navigate to="/admin/login" replace />;
+}
+
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={getAgentToken() ? <Navigate to="/agent" replace /> : <Login />} />
+      <Route path="/admin/login" element={getAdminToken() ? <Navigate to="/admin" replace /> : <AdminLogin />} />
       <Route
         path="/agent"
         element={
@@ -42,11 +48,12 @@ export default function App() {
       <Route
         path="/admin"
         element={
-          <RequireAgent>
+          <RequireAdmin>
             <AdminDashboard />
-          </RequireAgent>
+          </RequireAdmin>
         }
       />
+      <Route path="/j/:code" element={<CustomerJoin />} />
       <Route path="/join" element={<CustomerJoin />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

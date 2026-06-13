@@ -12,6 +12,7 @@ import type {
 const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
 const TOKEN_KEY = 'assistlens.agent.token';
+const ADMIN_TOKEN_KEY = 'assistlens.admin.token';
 
 export function getAgentToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -21,6 +22,16 @@ export function setAgentToken(token: string): void {
 }
 export function clearAgentToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+}
+
+export function getAdminToken(): string | null {
+  return localStorage.getItem(ADMIN_TOKEN_KEY);
+}
+export function setAdminToken(token: string): void {
+  localStorage.setItem(ADMIN_TOKEN_KEY, token);
+}
+export function clearAdminToken(): void {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
 }
 
 export class ApiError extends Error {
@@ -55,9 +66,16 @@ export function login(email: string, password: string) {
   });
 }
 
+export function adminLogin(email: string, password: string) {
+  return request<{ token: string; admin: { id: string; email: string } }>('/auth/admin/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
 // ── Agent: sessions ─────────────────────────────────────────────────────────
 export function createSession(token: string, title?: string) {
-  return request<{ session: SessionSummary; invite: { token: string; url: string } }>('/sessions', {
+  return request<{ session: SessionSummary; invite: { code: string; url: string } }>('/sessions', {
     method: 'POST',
     token,
     body: JSON.stringify({ title }),
@@ -84,7 +102,7 @@ export function getAgentToken_(token: string, id: string) {
 }
 
 export function getInvite(token: string, id: string) {
-  return request<{ token: string; url: string }>(`/sessions/${id}/invite`, { token });
+  return request<{ code: string; url: string }>(`/sessions/${id}/invite`, { token });
 }
 
 export function endSession(token: string, id: string) {
@@ -198,11 +216,25 @@ export function adminEndSession(token: string, id: string) {
 }
 
 // ── Customer join ────────────────────────────────────────────────────────────
+export function checkInviteByCode(code: string) {
+  return request<{ valid: boolean; sessionTitle?: string; reason?: string; code?: string }>(
+    `/invite/${encodeURIComponent(code)}`,
+  );
+}
+
 export function checkInvite(inviteToken: string) {
   return request<{ valid: boolean; sessionTitle?: string; reason?: string }>(
     `/invite?token=${encodeURIComponent(inviteToken)}`,
   );
 }
+
+export function joinByCode(code: string, name?: string) {
+  return request<JoinInfo>('/join', {
+    method: 'POST',
+    body: JSON.stringify({ code, name }),
+  });
+}
+
 export function join(inviteToken: string, name?: string) {
   return request<JoinInfo>('/join', {
     method: 'POST',

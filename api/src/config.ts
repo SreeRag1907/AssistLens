@@ -18,6 +18,9 @@ export const config = {
   agentEmail: required('AGENT_EMAIL', 'agent@assistlens.dev'),
   agentPassword: required('AGENT_PASSWORD', 'demo-agent-pass'),
 
+  adminEmail: required('ADMIN_EMAIL', 'admin@assistlens.dev'),
+  adminPassword: required('ADMIN_PASSWORD', 'demo-admin-pass'),
+
   databaseUrl: required('DATABASE_URL', 'postgres://assistlens:assistlens@localhost:5432/assistlens'),
 
   livekit: {

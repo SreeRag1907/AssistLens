@@ -2,7 +2,8 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import { config } from './config.js';
-import { migrate, seedAgent } from './db.js';
+import { migrate, seedAgent, seedAdmin } from './db.js';
+import { backfillInviteCodes } from './inviteCode.js';
 import { ensureBuckets } from './s3.js';
 import { sweepExpiredGrace } from './presence.js';
 import { reconcileStaleRecordings } from './recordings.js';
@@ -59,6 +60,8 @@ async function main(): Promise<void> {
 
   await migrate();
   await seedAgent();
+  await seedAdmin();
+  await backfillInviteCodes();
   try {
     await ensureBuckets();
     app.log.info('S3 buckets ready');

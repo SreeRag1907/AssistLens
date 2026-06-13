@@ -16,6 +16,8 @@ export interface UseRoomOptions {
   onData?: (payload: DataPayload) => void;
   /** Room deleted or server shut down — session is over. */
   onSessionEnded?: () => void;
+  initialMicEnabled?: boolean;
+  initialCameraEnabled?: boolean;
 }
 
 export interface UseRoomResult {
@@ -52,12 +54,19 @@ export function statusLabel(status: CallStatus): string {
   }
 }
 
-export function useRoom({ url, token, onData, onSessionEnded }: UseRoomOptions): UseRoomResult {
+export function useRoom({
+  url,
+  token,
+  onData,
+  onSessionEnded,
+  initialMicEnabled = true,
+  initialCameraEnabled = true,
+}: UseRoomOptions): UseRoomResult {
   const [room, setRoom] = useState<Room | null>(null);
   const [status, setStatus] = useState<CallStatus>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [micEnabled, setMicEnabled] = useState(true);
-  const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [micEnabled, setMicEnabled] = useState(initialMicEnabled);
+  const [cameraEnabled, setCameraEnabled] = useState(initialCameraEnabled);
   const [tick, setTick] = useState(0);
 
   const onDataRef = useRef(onData);
@@ -119,12 +128,11 @@ export function useRoom({ url, token, onData, onSessionEnded }: UseRoomOptions):
         }
         setRoom(r);
         try {
-          await r.localParticipant.setMicrophoneEnabled(true);
-          await r.localParticipant.setCameraEnabled(true);
-          setMicEnabled(true);
-          setCameraEnabled(true);
+          await r.localParticipant.setMicrophoneEnabled(initialMicEnabled);
+          await r.localParticipant.setCameraEnabled(initialCameraEnabled);
+          setMicEnabled(initialMicEnabled);
+          setCameraEnabled(initialCameraEnabled);
         } catch {
-          // Permissions denied — they can still see/hear others.
           setMicEnabled(false);
           setCameraEnabled(false);
           setError('We could not access your camera or microphone. Check your browser permissions.');
@@ -143,7 +151,7 @@ export function useRoom({ url, token, onData, onSessionEnded }: UseRoomOptions):
       r.removeAllListeners();
       r.disconnect();
     };
-  }, [url, token, bump]);
+  }, [url, token, bump, initialMicEnabled, initialCameraEnabled]);
 
   const toggleMic = useCallback(async () => {
     if (!room) return;

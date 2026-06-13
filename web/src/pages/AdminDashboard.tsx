@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   adminListSessions,
   adminGetSessionDetail,
   adminEndSession,
-  getAgentToken,
+  getAdminToken,
+  clearAdminToken,
 } from '../lib/api';
 import type { EventRecord, ParticipantRecord, SessionSummary } from '../lib/types';
 import { Button, Card, Logo, StatusBadge, ThemeToggle, btnClass } from '../components/ui';
@@ -52,7 +53,8 @@ interface ExpandedState {
 }
 
 export function AdminDashboard() {
-  const token = getAgentToken()!;
+  const navigate = useNavigate();
+  const token = getAdminToken()!;
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -144,12 +146,10 @@ export function AdminDashboard() {
       {/* Top bar */}
       <header className="sticky top-0 z-20 border-b border-line bg-bg/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
-          <Link to="/agent" className="opacity-70 hover:opacity-100 transition">
-            <Logo size={30} />
-          </Link>
+          <Logo size={30} />
           <div className="flex-1">
             <span className="text-sm font-semibold text-fg">Admin Dashboard</span>
-            <span className="ml-2 text-xs text-muted">Operations view — all agents</span>
+            <span className="ml-2 text-xs text-muted">Operations — all agents & sessions</span>
           </div>
           {live.length > 0 && (
             <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-500 ring-1 ring-emerald-500/25">
@@ -157,9 +157,16 @@ export function AdminDashboard() {
               {live.length} live
             </span>
           )}
-          <Link to="/agent" className={btnClass('ghost', 'text-sm')}>
-            Agent view
-          </Link>
+          <button
+            type="button"
+            onClick={() => {
+              clearAdminToken();
+              navigate('/admin/login');
+            }}
+            className={btnClass('ghost', 'text-sm')}
+          >
+            Sign out
+          </button>
           <ThemeToggle />
         </div>
       </header>
@@ -236,12 +243,6 @@ export function AdminDashboard() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <Link
-                      to={`/agent/history/${session.id}`}
-                      className={btnClass('ghost', 'text-xs px-3 py-1.5')}
-                    >
-                      Detail
-                    </Link>
                     <button
                       onClick={() => toggleExpand(session.id)}
                       className={btnClass('secondary', 'text-xs px-3 py-1.5')}

@@ -31,10 +31,20 @@ export async function migrate(): Promise<void> {
 export async function seedAgent(): Promise<void> {
   const hash = await bcrypt.hash(config.agentPassword, 10);
   await pool.query(
-    `INSERT INTO agents (email, password_hash)
-     VALUES ($1, $2)
-     ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+    `INSERT INTO agents (email, password_hash, is_admin)
+     VALUES ($1, $2, false)
+     ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, is_admin = false`,
     [config.agentEmail, hash],
+  );
+}
+
+export async function seedAdmin(): Promise<void> {
+  const hash = await bcrypt.hash(config.adminPassword, 10);
+  await pool.query(
+    `INSERT INTO agents (email, password_hash, is_admin)
+     VALUES ($1, $2, true)
+     ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, is_admin = true`,
+    [config.adminEmail, hash],
   );
 }
 

@@ -3,20 +3,22 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db.js';
 import { config } from '../config.js';
-import { signInviteToken } from '../auth.js';
 import { requireAgent } from '../guards.js';
 import { closeAllParticipants } from '../presence.js';
 import { isRecordingAvailable, mintAccessToken, closeRoom, startRoomRecording, stopRecording } from '../livekit.js';
 import { reconcileStaleRecordings } from '../recordings.js';
+import { generateInviteCode, inviteUrl, backfillInviteCodes } from '../inviteCode.js';
 import type { SessionRow, ParticipantRow, EventRow, RecordingRow, ChatMessageRow, ChatFileRow } from '../types.js';
 
 const createSchema = z.object({ title: z.string().max(200).optional() });
 
-function inviteUrl(token: string): string {
-  return `${config.publicWebOrigin}/join?token=${encodeURIComponent(token)}`;
+function makeInvite(session: SessionRow): { code: string; url: string } {
+  if (!session.invite_code) {
+    throw new Error('Session missing invite_code');
+  }
+  return { code: session.invite_code, url: inviteUrl(session.invite_code) };
 }
 
-/** Stop active egress and give it a moment to flush before the room is deleted. */
 async function stopActiveRecording(
   sessionId: string,
   log: { warn: (obj: unknown, msg: string) => void },
@@ -38,18 +40,6 @@ async function stopActiveRecording(
   }
 }
 
-// A fresh, scoped, expiring customer invite for a session. Tokens are not
-// persisted — we re-mint on demand so the agent can re-share at any time.
-function makeInvite(session: SessionRow): { token: string; url: string } {
-  const token = signInviteToken({
-    sid: session.id,
-    room: session.room_name,
-    role: 'customer',
-    name: 'Customer',
-  });
-  return { token, url: inviteUrl(token) };
-}
-
 export async function sessionRoutes(app: FastifyInstance): Promise<void> {
   // Create a session (agent only) and return a shareable customer invite link.
   app.post('/api/sessions', async (req, reply) => {
@@ -62,10 +52,11 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const roomName = `room_${randomUUID()}`;
+    const inviteCode = generateInviteCode();
     const res = await query<SessionRow>(
-      `INSERT INTO sessions (agent_id, room_name, title)
-       VALUES ($1, $2, $3) RETURNING *`,
-      [agent.agentId, roomName, parsed.data.title ?? null],
+      `INSERT INTO sessions (agent_id, room_name, title, invite_code)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [agent.agentId, roomName, parsed.data.title ?? null, inviteCode],
     );
     const session = res.rows[0];
     await query(`INSERT INTO events (session_id, type, identity) VALUES ($1, 'session_created', $2)`, [
@@ -95,6 +86,15 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
       return reply
         .code(410)
         .send({ error: 'session_ended', message: 'This session has ended — its link can no longer be used.' });
+    }
+    if (!session.invite_code) {
+      await backfillInviteCodes();
+      const refreshed = await query<SessionRow>('SELECT * FROM sessions WHERE id = $1', [id]);
+      const updated = refreshed.rows[0];
+      if (!updated?.invite_code) {
+        return reply.code(500).send({ error: 'internal_error', message: 'Could not generate invite link.' });
+      }
+      return makeInvite(updated);
     }
     return makeInvite(session);
   });

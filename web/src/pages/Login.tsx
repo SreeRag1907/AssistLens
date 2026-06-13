@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { login, setAgentToken, ApiError } from '../lib/api';
 import { Button, Logo, ThemeToggle } from '../components/ui';
 
@@ -106,7 +106,10 @@ export function Login() {
           </form>
 
           <p className="mt-6 text-center text-xs text-subtle">
-            Customers don't sign in — they join from an invite link.
+            Customers join from a short invite link — no account needed.{' '}
+            <Link to="/admin/login" className="font-medium text-muted hover:text-fg">
+              Admin login →
+            </Link>
           </p>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
-import { requireAgent } from '../guards.js';
+import { requireAdmin } from '../guards.js';
 import { closeAllParticipants } from '../presence.js';
 import { closeRoom, stopRecording } from '../livekit.js';
 import type { SessionRow, ParticipantRow, EventRow } from '../types.js';
@@ -11,7 +11,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // would gate this behind an is_admin flag, but for the hackathon all
   // logged-in agents are considered ops staff.
   app.get('/api/admin/sessions', async (req, reply) => {
-    const agent = await requireAgent(req, reply);
+    const agent = await requireAdmin(req, reply);
     if (!agent) return;
 
     const res = await query<
@@ -34,7 +34,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   // Participants for a specific session (admin view — no agent_id gate).
   app.get('/api/admin/sessions/:id/participants', async (req, reply) => {
-    const agent = await requireAgent(req, reply);
+    const agent = await requireAdmin(req, reply);
     if (!agent) return;
     const { id } = req.params as { id: string };
 
@@ -47,7 +47,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   // Combined detail for admin expand (one round trip instead of two).
   app.get('/api/admin/sessions/:id/detail', async (req, reply) => {
-    const agent = await requireAgent(req, reply);
+    const agent = await requireAdmin(req, reply);
     if (!agent) return;
     const { id } = req.params as { id: string };
 
@@ -68,7 +68,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   // Event log for a session (admin view).
   app.get('/api/admin/sessions/:id/events', async (req, reply) => {
-    const agent = await requireAgent(req, reply);
+    const agent = await requireAdmin(req, reply);
     if (!agent) return;
     const { id } = req.params as { id: string };
 
@@ -83,7 +83,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   // End any active session (admin power — no agent ownership check).
   app.post('/api/admin/sessions/:id/end', async (req, reply) => {
-    const agent = await requireAgent(req, reply);
+    const agent = await requireAdmin(req, reply);
     if (!agent) return;
     const { id } = req.params as { id: string };
 

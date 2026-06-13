@@ -7,6 +7,7 @@ export interface AgentRow {
   id: string;
   email: string;
   password_hash: string;
+  is_admin: boolean;
 }
 
 export interface SessionRow {
@@ -15,6 +16,7 @@ export interface SessionRow {
   room_name: string;
   title: string | null;
   status: SessionStatus;
+  invite_code: string | null;
   created_at: string;
   ended_at: string | null;
   ended_by: string | null;
@@ -72,12 +74,15 @@ export interface ChatFileRow {
   created_at: string;
 }
 
-// JWT payload for an authenticated agent.
-export interface AgentClaims {
+// JWT payload for authenticated staff (agent or admin).
+export interface StaffClaims {
   sub: string;
   email: string;
-  role: 'agent';
+  role: 'agent' | 'admin';
 }
+
+/** @deprecated use StaffClaims */
+export type AgentClaims = StaffClaims;
 
 // Signed invite token payload — the access-control primitive for customers.
 export interface InviteClaims {

@@ -16,6 +16,8 @@ interface Props {
   role: Role;
   initialRecording?: boolean;
   recordingAvailable?: boolean;
+  initialMicEnabled?: boolean;
+  initialCameraEnabled?: boolean;
   onEndSession?: () => Promise<void>;
   onStartRecording?: () => Promise<{ id: string } | void>;
   onStopRecording?: (recordingId: string | null) => Promise<void>;
@@ -79,6 +81,8 @@ export function CallStage(props: Props) {
     token,
     onData: handleData,
     onSessionEnded: props.onSessionEnded ?? props.onLeft,
+    initialMicEnabled: props.initialMicEnabled ?? true,
+    initialCameraEnabled: props.initialCameraEnabled ?? true,
   });
 
   const endRecordingUi = useCallback(

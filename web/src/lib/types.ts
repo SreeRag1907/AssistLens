@@ -65,6 +65,7 @@ export interface ChatMessage {
 export interface JoinInfo {
   url: string;
   token: string;
+  inviteToken: string;
   identity: string;
   displayName: string;
   sessionId: string;

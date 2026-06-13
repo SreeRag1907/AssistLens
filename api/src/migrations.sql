@@ -89,3 +89,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_files_session ON chat_files(session_id);
 
 -- Add is_admin column to agents for admin dashboard access
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
+
+-- Short customer invite codes (e.g. /j/xk9m2pqa)
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS invite_code TEXT UNIQUE;
+CREATE INDEX IF NOT EXISTS idx_sessions_invite_code ON sessions(invite_code);

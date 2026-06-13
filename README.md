@@ -1,165 +1,345 @@
-# AssistLens — Real-Time Visual Customer Support Platform
+# AssistLens
 
-> "Helping support teams see what customers see."
+**Real-time visual customer support — no app install, no third-party video API.**
 
-Owned, private, recordable, reviewable visual support — with **no third-party hosted video API** and **no app install**. A support agent creates a session, shares a link, and a customer is on video from a phone browser in seconds.
+AssistLens lets support agents start a video session in seconds, share a short link with a customer, and troubleshoot issues with live audio/video, in-call chat, file sharing, and optional recording. Media is routed through a **self-hosted LiveKit SFU** (server-side forwarding, not peer-to-peer).
 
-Built for the AtomQuest Hackathon "Real-Time Video Support Platform" problem statement.
+Built for the AtomQuest Hackathon *Real-Time Video Support Platform* problem statement.
 
 ---
 
-## What it does
+## Table of contents
 
-- **Agent** signs in, creates a session, and gets a shareable invite link. They run the call, mute/unmute, toggle video, start/stop recording, and end the session. They can review full session history afterwards.
-- **Customer** clicks the SMS/email link, lands on one screen, taps **Allow**, and is on video. No account, no app, mobile-first.
-- Media is routed by a **self-hosted LiveKit SFU** (Selective Forwarding Unit) — every stream goes through a server we own and operate. **No peer-to-peer, no hosted video SDK.**
+- [Features](#features)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Repository layout](#repository-layout)
+- [Roles & access control](#roles--access-control)
+- [Local development](#local-development)
+- [Environment variables](#environment-variables)
+- [Deployment](#deployment)
+- [Demo script](#demo-script)
+- [API overview](#api-overview)
+- [Known limitations](#known-limitations)
+
+---
+
+## Features
+
+### Core (required)
+
+| Feature | Description |
+| --- | --- |
+| **Agent session management** | Create, join, end, and review support sessions |
+| **Customer join via link** | No account or app — open link, preview camera/mic, join |
+| **Server-routed media** | Self-hosted LiveKit SFU; no P2P, no hosted video SDK |
+| **Audio & video** | Full duplex A/V with mute/camera controls |
+| **In-call chat** | Real-time chat over LiveKit data channels + Postgres persistence |
+| **Role-based access** | Signed invite tokens for customers; JWT for agents/admins |
+
+### Bonus
+
+| Feature | Description |
+| --- | --- |
+| **Recording** | LiveKit Egress → MinIO; status flow `in_progress → processing → ready`; download via API |
+| **File sharing in chat** | Upload images, PDFs, Office docs (≤20 MB) to MinIO; download from session record |
+| **Reconnect handling** | 30s grace window in Postgres; seamless rejoin without notifying others |
+| **Admin dashboard** | Separate login; view all sessions, participants, event logs; end any active session |
+| **Observability** | Prometheus metrics at `/api/metrics`; health check at `/api/health` |
+| **Pre-join lobby** | Google Meet–style camera/mic preview and device selection before entering the call |
+| **Short invite URLs** | Share links like `/j/xk9m2pqa` instead of long JWT query strings |
+| **Dark / light mode** | Theme toggle across agent, admin, and customer UIs |
+
+---
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-  subgraph client [Browser - no install]
+  subgraph browsers [Browser — no install]
     agentUI[Agent Console]
-    custUI[Customer Join Page]
+    adminUI[Admin Dashboard]
+    custUI[Customer Join /j/code]
   end
-  subgraph paas [Managed / PaaS]
-    web[Web app - Vercel]
-    api[Fastify API - Railway/Render]
-    livekit[Self-hosted LiveKit SFU - container]
+
+  subgraph host [Your infrastructure]
+    web[Web — Vite / React]
+    api[API — Fastify + TypeScript]
+    lk[LiveKit SFU — Docker]
+    minio[MinIO — recordings + files]
+    egress[LiveKit Egress]
   end
-  subgraph data [Managed data]
+
+  subgraph managed [Managed]
     pg[(Supabase Postgres)]
   end
-  recording[Optional: Egress + MinIO - local profile]
 
   agentUI --> web
+  adminUI --> web
   custUI --> web
-  web -->|REST: login, create/end, join, chat persist| api
-  api -->|mint role-scoped access token| livekit
-  agentUI <-->|WebRTC media + data-channel chat| livekit
-  custUI <-->|WebRTC media + data-channel chat| livekit
-  livekit -->|webhooks: joined/left/finished/egress| api
+  web -->|REST| api
+  api -->|tokens, webhooks| lk
   api --> pg
-  livekit -.->|record| recording
-  recording -.-> pg
+  agentUI <-->|WebRTC + data channel| lk
+  custUI <-->|WebRTC + data channel| lk
+  lk --> egress
+  egress --> minio
+  api --> minio
 ```
 
-### Why these choices
+### Design decisions
 
 | Concern | Choice | Why |
 | --- | --- | --- |
-| Media routing | **Self-hosted LiveKit SFU** | Server-routed (not P2P), runs on infrastructure we own/operate — satisfies the explicit ban on third-party hosted video APIs. LiveKit Cloud is intentionally NOT used for this reason. |
-| Durable record | **Supabase Postgres** | Managed Postgres (a database, not a video API — fully allowed). Sessions, participants, events, chat, recordings are persisted and queryable. |
-| Realtime chat | **LiveKit data channels** | Chat rides the same media connection (low latency, no extra infra), and each message is also persisted via REST for the session record. |
-| Presence + reconnect grace | **Postgres** | `participants.left_at` = presence; `participants.grace_until` = the reconnect grace timer; a 5s sweep finalizes expired windows. No Redis needed. |
-| Access control | **Signed invite tokens + JWT** | The invite token is the customer access-control primitive; agent JWT gates agent-only actions; LiveKit grants enforce roles at the media layer. |
-| Observability | **Prometheus** | `/api/metrics` exposes active sessions, connected participants, error counts; LiveKit exposes its own metrics. |
+| Media | Self-hosted **LiveKit SFU** | Server-routed media on infrastructure you operate; satisfies “no third-party hosted video API” |
+| Database | **Supabase Postgres** | Managed Postgres for sessions, chat, events, recordings metadata |
+| Realtime chat | **LiveKit data channels** + REST persist | Low latency in-call; durable transcript after the call |
+| Presence / reconnect | **Postgres** (`grace_until` + sweep) | No Redis required for hackathon scope |
+| Object storage | **MinIO** (S3-compatible) | Recordings and chat file attachments |
+| Customer access | **Short invite code** + signed JWT | Simple URLs; scoped tokens minted at join time |
+| Staff access | **Separate agent / admin JWTs** | Agents cannot access admin routes |
 
-A printable diagram lives at [`docs/architecture.md`](docs/architecture.md).
-
-## Repo layout
-
-```
-api/    Fastify + TypeScript backend (auth, sessions, join, chat, webhooks, metrics)
-web/    React + TypeScript + Vite + Tailwind frontend (agent console + customer join)
-infra/  LiveKit configs (dev / recording / prod), Render blueprint, Prometheus config
-docker-compose.yml            local LiveKit SFU
-docker-compose.recording.yml  optional recording stack (Redis + MinIO + Egress)
-```
-
-## Roles & access control
-
-- **Agent**: seeded account → email/password login → app JWT (12h). Required for create/end session, start/stop recording, and reading session history.
-- **Customer**: no account. A **scoped, expiring signed invite token** (embeds `session_id`, `role=customer`, `exp`) is the only credential. The API validates it and mints a LiveKit access token with **customer grants** (publish/subscribe only — cannot manage or close the room). Agents get **room-admin** grants.
-- Result: a customer literally cannot perform agent actions, and joining always requires a valid invite — one mechanism, not two bolted-on checks.
-
-## Reliability — the named edge cases
-
-- **Duplicate joins** — detected via an open participant row for the same identity; surfaced to the user ("already in this call on another tab") and logged as a `duplicate_join` event.
-- **Invalid / expired invite** — the API rejects the token and the customer sees a friendly, human-readable page (not a stack trace).
-- **Unexpected disconnect** — on `participant_left`, `grace_until` opens a reconnect window; rejoining within it re-opens the same row (others are never notified); when it elapses, a sweep records an authoritative `left` event.
-
-## Bonus features implemented
-
-- **Reconnect handling** (Postgres grace window + LiveKit native resume).
-- **Observability** (`/api/metrics` Prometheus endpoint + LiveKit metrics; scrape config in [`infra/prometheus.yml`](infra/prometheus.yml)).
-- **Recording** (optional) — LiveKit Egress records the room composite to MinIO (self-hosted S3); status surfaces as `in_progress → processing → ready` with a download link, and the customer sees a clear "this call is being recorded" consent banner.
+A printable diagram is also in [`docs/architecture.md`](docs/architecture.md).
 
 ---
 
-## Run it locally
+## Tech stack
 
-Prereqs: Node 20+, Docker (for LiveKit), and a free Supabase project.
+| Layer | Technology |
+| --- | --- |
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, `livekit-client` |
+| Backend | Node.js, Fastify, TypeScript, `livekit-server-sdk`, `pg` |
+| Database | PostgreSQL (Supabase cloud in dev/prod) |
+| Media | LiveKit Server (Docker), LiveKit Egress |
+| Storage | MinIO (recordings + chat files) |
+| Metrics | Prometheus (`prom-client`) |
+| Local infra | Docker Compose (LiveKit, Redis, MinIO, Egress) |
 
-### 1. Database (Supabase)
+---
 
-1. Create a project at supabase.com.
-2. Copy **Project Settings → Database → Connection string (URI)**.
-3. The schema auto-migrates on API boot (`api/src/migrations.sql`); the seed agent is created from `AGENT_EMAIL` / `AGENT_PASSWORD`.
+## Repository layout
 
-### 2. LiveKit SFU
-
-```bash
-cp .env.example .env        # set LIVEKIT_API_KEY/SECRET (defaults are fine locally)
-docker compose up           # starts LiveKit on ws://localhost:7880
+```
+AssistLens/
+├── api/                 Fastify API — auth, sessions, join, chat, files, webhooks, admin, metrics
+├── web/                 React SPA — agent console, admin dashboard, customer join flow
+├── infra/               LiveKit configs, Prometheus scrape config, Render blueprint
+├── docs/                Architecture notes
+├── docker-compose.yml   Local stack: LiveKit + Redis + MinIO + Egress
+└── README.md
 ```
 
-### 3. API
+---
+
+## Roles & access control
+
+### Agent (`/`)
+
+- **Login:** `agent@assistlens.dev` / `demo-agent-pass` (configurable via env)
+- **Can:** create sessions, share invite links, join/end calls, start/stop recording, view own session history
+- **Cannot:** access `/admin` or admin API routes
+
+### Admin (`/admin/login`)
+
+- **Login:** `admin@assistlens.dev` / `demo-admin-pass` (separate account, separate JWT)
+- **Can:** view all agents’ sessions, expand participant lists and event logs, forcibly end any session
+- **Cannot:** use agent login or access agent-only session ownership checks with an admin token on agent routes
+
+### Customer (`/j/:code`)
+
+- **No login.** Opens short link → pre-join lobby (camera/mic preview) → joins call
+- **Credential:** invite code resolves to session; API mints scoped LiveKit + invite JWT at join time
+- **LiveKit grants:** publish/subscribe only (no room admin)
+
+---
+
+## Local development
+
+### Prerequisites
+
+- **Node.js 20+**
+- **Docker Desktop** (for LiveKit, MinIO, Egress)
+- **Supabase** free project (Postgres connection string)
+
+### 1. Clone and configure
+
+```bash
+git clone <repo-url>
+cd AssistLens
+```
+
+Copy environment files:
+
+```bash
+cp api/.env.example api/.env
+```
+
+Edit `api/.env` and set **`DATABASE_URL`** to your Supabase connection string (Session pooler, port 5432). URL-encode special characters in the password (e.g. `@` → `%40`).
+
+Default seed accounts (created on API boot):
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Agent | `agent@assistlens.dev` | `demo-agent-pass` |
+| Admin | `admin@assistlens.dev` | `demo-admin-pass` |
+
+### 2. Start Docker (media + recording stack)
+
+```bash
+docker compose up
+```
+
+This starts:
+
+- **LiveKit** — `ws://localhost:7880`
+- **Redis** — required by Egress
+- **MinIO** — `http://localhost:9000` (console `:9001`)
+- **Egress** — room recording to MinIO
+
+For video-only (no recording), you can run `docker compose up livekit redis` instead.
+
+### 3. Start the API
 
 ```bash
 cd api
-cp .env.example .env        # set DATABASE_URL to your Supabase URI
 npm install
-npm run dev                 # http://localhost:8080  (auto-migrates + seeds agent)
+npm run dev
 ```
 
-### 4. Web
+Runs at **http://localhost:8080**. On boot it:
+
+- Applies migrations (`api/src/migrations.sql`)
+- Seeds agent and admin accounts
+- Creates S3 buckets if MinIO is reachable
+- Backfills short invite codes on existing sessions
+
+### 4. Start the web app
 
 ```bash
 cd web
 npm install
-npm run dev                 # http://localhost:5173  (proxies /api → :8080)
+npm run dev
 ```
 
-Open http://localhost:5173, sign in as the agent, create a session, copy the invite link, and open it in a second browser/phone to join as the customer.
+Runs at **http://localhost:5173** and proxies `/api` → `:8080`.
 
-### Optional: recording
+### 5. Try it
 
-```bash
-# instead of `docker compose up`
-docker compose -f docker-compose.recording.yml up
-```
-Then set the API's `S3_*` / `MINIO_BUCKET` to the values in `.env`, and use the Record button in the agent call.
+1. Open **http://localhost:5173** → sign in as **agent**
+2. **Create session** → copy the short invite link (e.g. `http://localhost:5173/j/xk9m2pqa`)
+3. Open that link in another browser or on your phone
+4. Use the **pre-join lobby** to check camera/mic → **Join now**
+5. Optional: open **http://localhost:5173/admin/login** as **admin** to monitor all sessions
 
 ---
 
-## Deploy (live URL)
+## Environment variables
 
-- **Web → Vercel**: import `web/`, framework Vite. Set `VITE_API_BASE` to your API's public URL (e.g. `https://<api-host>/api`). `web/vercel.json` handles SPA routing.
-- **API → Railway or Render**: deploy `api/` via its `Dockerfile`. Render users can apply [`infra/render.yaml`](infra/render.yaml). Set all secrets + `DATABASE_URL` (Supabase) + `PUBLIC_WEB_ORIGIN` (the Vercel URL) + `LIVEKIT_URL` / `PUBLIC_LIVEKIT_URL`.
-- **LiveKit → self-hosted container** (Railway / Render / Fly): run the `livekit/livekit-server` image with [`infra/livekit.prod.yaml`](infra/livekit.prod.yaml) (replace the webhook URL with your API host; set `LIVEKIT_KEYS`). Expose 7880 (wss via the platform's TLS) plus the RTC/TURN ports. `PUBLIC_LIVEKIT_URL` must be the public `wss://` URL.
+All API configuration lives in `api/.env`. See `api/.env.example` for the full list.
 
-> HTTPS is required for `getUserMedia` and `wss` for LiveKit — Vercel/Railway/Render provide TLS automatically, which is why Caddy was dropped from the original design.
+| Variable | Description |
+| --- | --- |
+| `DATABASE_URL` | Supabase Postgres connection string |
+| `JWT_SECRET` | Signs agent/admin JWTs |
+| `INVITE_SECRET` | Signs customer invite JWTs (internal, after join) |
+| `AGENT_EMAIL` / `AGENT_PASSWORD` | Seed support agent |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Seed operations admin |
+| `LIVEKIT_URL` | API → LiveKit HTTP (default `http://localhost:7880`) |
+| `PUBLIC_LIVEKIT_URL` | Browser → LiveKit WebSocket (default `ws://localhost:7880`) |
+| `PUBLIC_WEB_ORIGIN` | Web app URL for CORS + invite links (default `http://localhost:5173`) |
+| `S3_ENDPOINT` | MinIO from host (default `http://localhost:9000`) |
+| `S3_EGRESS_ENDPOINT` | MinIO from Egress container (default `http://minio:9000`) |
+| `RECONNECT_GRACE_SECONDS` | Reconnect window (default `30`) |
 
-## Judging quick-start
+Web (optional, production):
 
-- **Agent login**: `AGENT_EMAIL` / `AGENT_PASSWORD` (default `agent@assistlens.dev` / `demo-agent-pass`).
-- **Switch roles**: sign in as agent → create session → copy invite link → open it in an incognito window / phone to act as the customer.
+| Variable | Description |
+| --- | --- |
+| `VITE_API_BASE` | Public API base URL (e.g. `https://api.example.com/api`) |
 
-## Demo script (end-to-end, ~90s)
+---
 
-1. Agent signs in → **Create session** → copy invite link.
-2. Agent **Join call** (waiting room).
-3. Open invite on a phone → friendly screen → **Join video call** → Allow → both see/hear each other.
-4. Exchange a **chat** message both ways.
-5. Agent **Record** → customer's recording banner appears.
-6. Reliability: open the invite a second time (**duplicate join** warning); open a tampered/expired link (**friendly error**); kill the customer's network briefly and restore (**reconnect** within grace, no re-join churn).
-7. Agent **End** → customer sees the call ended → agent reviews **Details** (participants, durations, chat transcript, event log, recording download).
+## Deployment
+
+| Component | Suggested host | Notes |
+| --- | --- | --- |
+| **Web** | Vercel | Build `web/`, set `VITE_API_BASE` |
+| **API** | Railway / Render | Deploy `api/` via Dockerfile; set all env vars |
+| **Postgres** | Supabase | Connection string in `DATABASE_URL` |
+| **LiveKit** | Railway / Render / Fly | Self-hosted container; expose 7880 + UDP range |
+| **MinIO + Egress** | Same host or separate | Required for recording and file uploads |
+
+**HTTPS is required** for camera/microphone (`getUserMedia`) and secure WebSocket (`wss://`). Vercel/Railway/Render provide TLS automatically.
+
+Set `PUBLIC_WEB_ORIGIN` to your Vercel URL and `PUBLIC_LIVEKIT_URL` to your public LiveKit `wss://` URL.
+
+Render users: see [`infra/render.yaml`](infra/render.yaml).
+
+---
+
+## Demo script (~2 minutes)
+
+1. **Agent** signs in → creates session → copies short link `/j/xxxxxxxx`
+2. **Agent** joins call (waiting for customer)
+3. **Customer** opens link → pre-join lobby → allows camera/mic → joins
+4. Both verify **audio/video** and send **chat** messages
+5. **Agent** uploads a **file** in chat; customer downloads it
+6. **Agent** starts **recording** → customer sees REC indicator
+7. **Customer** refreshes page → auto-reconnects to active call
+8. **Agent** ends call → customer sees “call ended”
+9. **Agent** opens session **history** → transcript, events, recording download
+10. **Admin** signs in at `/admin/login` → sees session list and event log
+
+---
+
+## API overview
+
+Base path: `/api` (proxied in dev from Vite).
+
+| Area | Endpoints |
+| --- | --- |
+| **Auth** | `POST /auth/login`, `POST /auth/admin/login` |
+| **Sessions (agent)** | `POST /sessions`, `GET /sessions`, `GET /sessions/:id`, `POST /sessions/:id/end`, `GET /sessions/:id/invite` |
+| **Join (customer)** | `GET /invite/:code`, `POST /join` |
+| **Chat** | `GET/POST /sessions/:id/messages` |
+| **Files** | `GET/POST /sessions/:id/files`, `GET /sessions/:id/files/:fid/download` |
+| **Recording** | `POST .../recording/start`, `POST .../recording/stop`, `GET .../recording/:rid/download` |
+| **Admin** | `GET /admin/sessions`, `GET /admin/sessions/:id/detail`, `POST /admin/sessions/:id/end` |
+| **Ops** | `GET /health`, `GET /metrics` (Prometheus) |
+| **Webhooks** | `POST /webhooks/livekit` |
+
+---
 
 ## Known limitations
 
-- **Self-hosted LiveKit on a PaaS**: some hosts expose limited UDP; the config falls back to ICE-over-TCP + embedded TURN, which works but can reduce media quality on hostile networks.
-- **Recording** requires the Redis + MinIO + Egress stack (the `docker-compose.recording.yml` profile); it is off in the lightweight managed deploy.
-- **Single seeded agent** by default; multi-agent management and a full admin dashboard are out of scope for the sprint.
-- A **screen-recorded demo** is kept as a safety net in case live infra misbehaves during judging.
-- Confirm with organizers (in writing) that a self-hosted OSS SFU satisfies "owned and operated entirely by you" — the wording supports it.
+- **LiveKit on Docker Desktop (Windows)** — WebRTC may need `use_external_ip: false` and `node_ip: 127.0.0.1` in LiveKit config (already set for local dev).
+- **Recording** requires the full Docker stack (LiveKit + Redis + MinIO + Egress).
+- **Single seeded agent** by default; admin sees all sessions but does not impersonate agents.
+- **Invite codes** are session-scoped and persist for the life of the session; legacy JWT links still work.
+- **File uploads** limited to 20 MB and allowed MIME types (images, PDF, Word, Excel, plain text).
+
+---
+
+## Scripts
+
+```bash
+# API
+cd api && npm run dev        # development with hot reload
+cd api && npm run build      # compile TypeScript
+cd api && npm run typecheck  # type check only
+
+# Web
+cd web && npm run dev        # Vite dev server
+cd web && npm run build      # production build
+cd web && npm run typecheck  # type check only
+
+# Infrastructure
+docker compose up            # full local media + recording stack
+docker compose up livekit    # LiveKit only (no recording)
+```
+
+---
+
+## License
+
+Private / hackathon submission — see repository owner for terms.
