@@ -1,0 +1,23 @@
+# ── EDIT BEFORE DEPLOY ──────────────────────────────────────────────────────
+# Replace assistlens-api.onrender.com with YOUR Render API hostname (no https).
+port: 7880
+bind_addresses:
+  - ""
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50100
+  use_external_ip: true
+
+turn:
+  enabled: true
+  udp_port: 7882
+
+webhook:
+  api_key: devkey
+  urls:
+    - https://assistlens-api.onrender.com/api/webhooks/livekit
+
+logging:
+  level: info
