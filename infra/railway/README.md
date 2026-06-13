@@ -69,8 +69,8 @@ You will attach this to **livekit-server** and **egress**.
 ## Step 2 — MinIO (files + recording storage)
 
 1. **+ New** → **GitHub Repo** → same repo
-2. **Settings → Service name:** `minio` (important for internal DNS)
-3. **Root Directory:** `infra/railway-minio`
+2. **Settings → Service name:** `minio` (**required** — internal DNS is `minio.railway.internal`; any other name breaks egress upload)
+3. **Root Directory:** `infra/railway-minio` **or** Docker Image `minio/minio:latest`
 4. **Networking → Generate Domain** → target port **9000**
 5. **Volumes → Add volume** → mount path **`/data`**
 6. **Variables:**
@@ -213,7 +213,8 @@ Check Render logs if recording fails: `isRecordingAvailable` calls LiveKit Egres
 | **`no response from servers`** on Record | Usually same as above — livekit-server cannot see egress workers without shared Redis. |
 | File upload fails | `S3_ENDPOINT` must be MinIO **public** HTTPS URL; keys must match |
 | Record button grey / unavailable | Egress not running or Redis missing on livekit-server; redeploy both |
-| Recording stuck `processing` | Check egress logs; verify `S3_EGRESS_ENDPOINT` is internal MinIO URL |
+| Recording stuck **processing** / `egress_failed` S3 | Egress cannot reach MinIO. Error `no such host minio.railway.internal` → **rename MinIO service to `minio`** or set `S3_EGRESS_ENDPOINT=http://<actual-service-name>.railway.internal:9000` on **egress + Render** |
+| Recording stuck `processing` (other) | Check egress logs; verify `S3_EGRESS_ENDPOINT` resolves from egress container |
 | `could not establish pc connection` | TCP proxy 7882 on livekit-server |
 | No participants in history | Redeploy Render API (participant API fallback) + verify webhooks |
 | Files lost after MinIO redeploy | Add **Volume** at `/data` on minio service |

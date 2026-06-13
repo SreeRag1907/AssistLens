@@ -26,6 +26,16 @@ S3_ENDPOINT="${S3_EGRESS_ENDPOINT:-http://minio.railway.internal:9000}"
 S3_BUCKET="${MINIO_BUCKET:-recordings}"
 S3_REGION="${S3_REGION:-us-east-1}"
 
+S3_HOST=$(echo "$S3_ENDPOINT" | sed -n 's|https\?://\([^:/]*\).*|\1|p')
+if [ -n "$S3_HOST" ] && ! getent ahostsv4 "$S3_HOST" >/dev/null 2>&1 && ! getent hosts "$S3_HOST" >/dev/null 2>&1; then
+  echo "ERROR: Cannot resolve MinIO host '${S3_HOST}' from this container."
+  echo "       Railway private DNS is {service-name}.railway.internal"
+  echo "       Fix: rename your MinIO service to exactly 'minio' (Settings → Service name), OR set:"
+  echo "         S3_EGRESS_ENDPOINT=http://<your-minio-service-name>.railway.internal:9000"
+  echo "       on BOTH egress and Render (S3_EGRESS_ENDPOINT)."
+  exit 1
+fi
+
 REDIS_ADDRESS="${REDIS_ADDRESS:-}"
 REDIS_PASSWORD="${REDIS_PASSWORD:-}"
 REDIS_USERNAME="${REDIS_USERNAME:-}"
