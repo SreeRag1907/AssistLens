@@ -106,8 +106,8 @@ export async function sessionRoutes(app: FastifyInstance): Promise<void> {
     if (!agent) return;
     const res = await query(
       `SELECT s.*,
-              COUNT(p.id)::int AS participant_count,
-              COUNT(p.id) FILTER (WHERE p.left_at IS NULL)::int AS live_count
+              COUNT(p.id) FILTER (WHERE p.identity NOT LIKE 'EG_%')::int AS participant_count,
+              COUNT(p.id) FILTER (WHERE p.left_at IS NULL AND p.identity NOT LIKE 'EG_%')::int AS live_count
        FROM sessions s
        LEFT JOIN participants p ON p.session_id = s.id
        WHERE s.agent_id = $1

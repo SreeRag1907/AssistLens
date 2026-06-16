@@ -21,11 +21,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     if (!agent) return;
 
     const res = await query<
-      SessionRow & { agent_email: string; participant_count: number }
+      SessionRow & { agent_email: string; participant_count: number; live_count: number }
     >(
       `SELECT s.*,
               a.email AS agent_email,
-              COUNT(p.id) FILTER (WHERE p.left_at IS NULL) AS participant_count
+              COUNT(p.id) FILTER (WHERE p.identity NOT LIKE 'EG_%')::int AS participant_count,
+              COUNT(p.id) FILTER (WHERE p.left_at IS NULL AND p.identity NOT LIKE 'EG_%')::int AS live_count
        FROM sessions s
        JOIN agents a ON a.id = s.agent_id
        LEFT JOIN participants p ON p.session_id = s.id

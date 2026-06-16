@@ -189,6 +189,9 @@ export function AdminDashboard() {
                     <span>
                       {Number(session.participant_count ?? 0)} participant
                       {Number(session.participant_count ?? 0) !== 1 ? 's' : ''}
+                      {session.status === 'active' && Number(session.live_count ?? 0) > 0 && (
+                        <> · {Number(session.live_count)} live</>
+                      )}
                     </span>
                   </div>
                 </div>
