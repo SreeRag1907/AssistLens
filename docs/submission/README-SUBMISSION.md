@@ -67,11 +67,33 @@ Set `VITE_API_BASE` on Vercel, `RECORDING_ENABLED=true` on Render when Egress is
 
 ---
 
-## Features implemented
+## ✨ Features implemented
 
-**Required:** Agent sessions, customer join via link, self-hosted SFU media, A/V, in-call chat, role-based access.
+Everything the problem statement asked for — plus a full bonus stack we run in production.
 
-**Bonus:** Call recording (Egress → MinIO), chat file sharing, reconnect grace, admin dashboard, Prometheus metrics, pre-join lobby, short invite URLs, dark/light theme, mobile camera flip.
+### ✅ Required (core platform)
+
+| | Feature |
+| --- | --- |
+| 🎫 | **Agent session management** — create, join, end, and review support sessions |
+| 🔗 | **Customer join via link** — no account, no app install; short URLs like `/j/xk9m2pqa` |
+| 🖥️ | **Self-hosted SFU media** — LiveKit on Railway (server-routed WebRTC, **not P2P**, **not** Twilio/Daily) |
+| 🎥 | **Audio & video** — full duplex A/V with mute, camera, and mobile flip |
+| 💬 | **In-call chat** — real-time messages over LiveKit data channels + Postgres history |
+| 🔐 | **Role-based access** — signed invite tokens for customers; JWT for agents & admins |
+
+### 🚀 Bonus (above & beyond)
+
+| | Feature |
+| --- | --- |
+| ⏺️ | **Call recording** — LiveKit Egress → MinIO; download MP4 from session detail |
+| 📎 | **Chat file sharing** — images, PDFs, docs (≤20 MB) stored in MinIO |
+| 🔄 | **Reconnect grace** — 30s window; customer can drop and rejoin without breaking the session |
+| 📊 | **Admin dashboard** — all sessions, participants, event logs, force-end |
+| 📈 | **Prometheus metrics** — `/api/metrics` + health check |
+| 🚪 | **Pre-join lobby** — camera/mic preview before entering the call |
+| 🌙 | **Dark / light theme** — across agent, admin, and customer UIs |
+| 📱 | **Mobile camera flip** — front/back camera on phones |
 
 ---
 
