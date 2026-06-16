@@ -3,7 +3,29 @@ import { Link, useNavigate } from 'react-router-dom';
 import { adminListSessions, adminEndSession, getAdminToken, ApiError } from '../lib/api';
 import { signOutAdmin, useAuthVersion, useSignOutPending } from '../lib/auth';
 import type { SessionSummary } from '../lib/types';
-import { Button, Card, StatusBadge, ThemeToggle, btnClass, AppHeader, PageMain, EmptyState, Spinner } from '../components/ui';
+import {
+  Button,
+  StatusBadge,
+  ThemeToggle,
+  btnClass,
+  AppHeader,
+  PageMain,
+  EmptyState,
+  Spinner,
+} from '../components/ui';
+import {
+  Col,
+  DataPanel,
+  DataTableHead,
+  DataTableRow,
+  FilterPills,
+  MetaLine,
+  PageHero,
+  PanelActions,
+  SectionBlock,
+  StatCard,
+  StatGrid,
+} from '../components/dashboard';
 
 function duration(start: string, end: string | null): string {
   const ms = (end ? new Date(end) : new Date()).getTime() - new Date(start).getTime();
@@ -23,6 +45,9 @@ function fmt(iso: string) {
     minute: '2-digit',
   });
 }
+
+const SESSION_ROW =
+  'md:grid-cols-[auto_minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,0.55fr)_minmax(0,0.55fr)_auto]';
 
 export function AdminDashboard() {
   useAuthVersion();
@@ -89,18 +114,25 @@ export function AdminDashboard() {
 
   const filtered = filter === 'all' ? sessions : sessions.filter((s) => s.status === filter);
 
+  const endedToday = sessions.filter(
+    (s) => s.status === 'ended' && s.ended_at && new Date(s.ended_at) > new Date(Date.now() - 86400000),
+  ).length;
+
+  const liveParticipants = live.reduce((a, s) => a + Number(s.live_count ?? 0), 0);
+
   return (
-    <div className="min-h-screen bg-bg text-fg">
+    <div className="min-h-[100dvh] bg-bg text-fg">
       <AppHeader
         subtitle="Operations"
         actions={
           <>
             {live.length > 0 && (
-              <span className="flex items-center gap-1.5 rounded-md border border-brand/30 bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">
+              <span className="hidden items-center gap-1.5 rounded-lg border border-brand/30 bg-brand-soft px-2.5 py-1 text-xs font-bold text-brand sm:flex">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
                 {live.length} live
               </span>
             )}
+            <ThemeToggle />
             <button
               type="button"
               onClick={() => signOutAdmin(navigate)}
@@ -109,112 +141,123 @@ export function AdminDashboard() {
             >
               Sign out
             </button>
-            <ThemeToggle />
           </>
         }
       />
 
       <PageMain className="max-w-6xl space-y-8">
-        <div>
-          <p className="section-label">Overview</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Admin dashboard</h1>
-        </div>
+        <PageHero
+          eyebrow="Operations center"
+          title="All support sessions"
+          description="Monitor agents, review session activity, and intervene when needed."
+        />
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: 'Total sessions', value: sessions.length },
-            { label: 'Live now', value: live.length },
-            { label: 'Live participants', value: live.reduce((a, s) => a + Number(s.participant_count ?? 0), 0) },
-            {
-              label: 'Ended today',
-              value: sessions.filter(
-                (s) => s.status === 'ended' && s.ended_at && new Date(s.ended_at) > new Date(Date.now() - 86400000),
-              ).length,
-            },
-          ].map((stat) => (
-            <Card key={stat.label} className="px-4 py-3">
-              <p className="text-2xl font-extrabold tabular-nums text-fg">{stat.value}</p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted">{stat.label}</p>
-            </Card>
-          ))}
-        </div>
+        <StatGrid>
+          <StatCard label="Total sessions" value={sessions.length} />
+          <StatCard label="Live now" value={live.length} accent={live.length > 0} />
+          <StatCard label="On calls" value={liveParticipants} hint="Connected now" />
+          <StatCard label="Ended today" value={endedToday} />
+        </StatGrid>
 
-        <div className="flex gap-1 rounded-lg border border-line bg-surface-2 p-1 w-fit">
-          {(['all', 'active', 'ended'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`rounded-md px-3.5 py-1.5 text-sm font-semibold transition ${
-                filter === f ? 'bg-surface text-fg shadow-card border border-line' : 'text-muted hover:text-fg'
-              }`}
-            >
-              {f === 'all' ? 'All' : f === 'active' ? 'Live' : 'Ended'}
-            </button>
-          ))}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <FilterPills
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { id: 'all', label: `All (${sessions.length})` },
+              { id: 'active', label: `Live (${live.length})` },
+              {
+                id: 'ended',
+                label: `Ended (${sessions.filter((s) => s.status === 'ended').length})`,
+              },
+            ]}
+          />
+          {!loading && (
+            <p className="text-xs text-muted">
+              Showing {filtered.length} session{filtered.length !== 1 ? 's' : ''}
+            </p>
+          )}
         </div>
 
         {loading && (
-          <div className="flex justify-center py-16">
+          <div className="flex justify-center py-20">
             <Spinner />
           </div>
         )}
+
         {error && (
-          <Card className="border-red-500/30 bg-red-500/5 p-4">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3">
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          </Card>
+          </div>
         )}
 
-        {!loading && filtered.length === 0 && <EmptyState>No sessions to show.</EmptyState>}
+        {!loading && filtered.length === 0 && <EmptyState>No sessions match this filter.</EmptyState>}
 
-        <div className="space-y-2">
-          {filtered.map((session) => (
-            <Card key={session.id} className="overflow-hidden">
-              <div className="flex flex-wrap items-center gap-3 px-5 py-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
+        {!loading && filtered.length > 0 && (
+          <SectionBlock title="Sessions" count={filtered.length}>
+            <DataPanel>
+              <DataTableHead className={SESSION_ROW}>
+                <Col>Status</Col>
+                <Col>Session</Col>
+                <Col>Agent</Col>
+                <Col>Started</Col>
+                <Col>Duration</Col>
+                <Col>Participants</Col>
+                <Col className="text-right">Actions</Col>
+              </DataTableHead>
+              {filtered.map((session) => (
+                <DataTableRow key={session.id} className={SESSION_ROW}>
+                  <Col>
                     <StatusBadge status={session.status === 'active' ? 'live' : 'ended'} />
+                  </Col>
+                  <Col>
                     <Link
                       to={`/admin/sessions/${session.id}`}
-                      className="font-semibold text-sm text-fg truncate hover:text-brand transition-colors"
+                      className="block truncate font-semibold text-fg hover:text-brand transition-colors"
                     >
                       {session.title ?? 'Untitled session'}
                     </Link>
-                    <span className="text-xs text-muted bg-surface-2 rounded-md px-2 py-0.5">
-                      {session.agent_email ?? 'Agent'}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted">
-                    <span>Started {fmt(session.created_at)}</span>
-                    <span>Duration: {duration(session.created_at, session.ended_at)}</span>
-                    <span>
-                      {Number(session.participant_count ?? 0)} participant
-                      {Number(session.participant_count ?? 0) !== 1 ? 's' : ''}
-                      {session.status === 'active' && Number(session.live_count ?? 0) > 0 && (
-                        <> · {Number(session.live_count)} live</>
+                  </Col>
+                  <Col>
+                    <span className="truncate text-sm text-muted">{session.agent_email ?? '—'}</span>
+                  </Col>
+                  <Col>
+                    <span className="text-sm text-muted">{fmt(session.created_at)}</span>
+                  </Col>
+                  <Col>
+                    <span className="text-sm text-fg">{duration(session.created_at, session.ended_at)}</span>
+                  </Col>
+                  <Col>
+                    <span className="text-sm text-fg">{Number(session.participant_count ?? 0)}</span>
+                    {session.status === 'active' && Number(session.live_count ?? 0) > 0 && (
+                      <MetaLine>{Number(session.live_count)} live</MetaLine>
+                    )}
+                  </Col>
+                  <Col className="md:text-right">
+                    <PanelActions>
+                      <Link
+                        to={`/admin/sessions/${session.id}`}
+                        className={btnClass('secondary', 'text-xs px-3 py-1.5')}
+                      >
+                        View
+                      </Link>
+                      {session.status === 'active' && (
+                        <Button
+                          variant="danger"
+                          className="text-xs px-3 py-1.5"
+                          disabled={ending === session.id}
+                          onClick={() => handleEnd(session.id)}
+                        >
+                          {ending === session.id ? '…' : 'End'}
+                        </Button>
                       )}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Link to={`/admin/sessions/${session.id}`} className={btnClass('secondary', 'text-xs px-3 py-1.5')}>
-                    Full details
-                  </Link>
-                  {session.status === 'active' && (
-                    <Button
-                      variant="danger"
-                      className="text-xs px-3 py-1.5"
-                      disabled={ending === session.id}
-                      onClick={() => handleEnd(session.id)}
-                    >
-                      {ending === session.id ? 'Ending…' : 'End'}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+                    </PanelActions>
+                  </Col>
+                </DataTableRow>
+              ))}
+            </DataPanel>
+          </SectionBlock>
+        )}
       </PageMain>
     </div>
   );

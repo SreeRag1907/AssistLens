@@ -15,13 +15,24 @@ import {
   AppHeader,
   btnClass,
   Button,
-  Card,
   EmptyState,
   Field,
   PageMain,
   StatusBadge,
   ThemeToggle,
 } from '../components/ui';
+import {
+  Col,
+  DataPanel,
+  DataTableHead,
+  DataTableRow,
+  MetaLine,
+  PageHero,
+  PanelActions,
+  SectionBlock,
+  StatCard,
+  StatGrid,
+} from '../components/dashboard';
 import { ShareDialog } from '../components/ShareDialog';
 
 function durationLabel(s: SessionSummary): string {
@@ -48,11 +59,15 @@ interface ShareState {
   error: string | null;
 }
 
+const LIVE_ROW = 'md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.7fr)_auto]';
+const HISTORY_ROW = 'md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.6fr)_minmax(0,0.5fr)_auto]';
+
 export function AgentDashboard() {
   useAuthVersion();
   const signingOut = useSignOutPending();
   const navigate = useNavigate();
   const token = getAgentToken();
+  const agentEmail = getAgentEmail();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
@@ -65,13 +80,13 @@ export function AgentDashboard() {
       const res = await listSessions(token);
       setSessions(res.sessions);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        signOutAgent(navigate);
-      }
+      if (err instanceof ApiError && err.status === 401) signOutAgent(navigate);
     }
   }, [token, navigate]);
 
-  const hasLive = sessions.some((s) => s.status === 'active');
+  const live = sessions.filter((s) => s.status === 'active');
+  const recent = sessions.filter((s) => s.status !== 'active');
+  const hasLive = live.length > 0;
 
   useEffect(() => {
     if (!token) return;
@@ -137,23 +152,20 @@ export function AgentDashboard() {
     }
   }
 
-  function logout() {
-    signOutAgent(navigate);
-  }
-
-  const live = sessions.filter((s) => s.status === 'active');
-  const recent = sessions.filter((s) => s.status !== 'active');
+  const endedToday = recent.filter(
+    (s) => s.ended_at && new Date(s.ended_at) > new Date(Date.now() - 86400000),
+  ).length;
 
   return (
     <div className="min-h-[100dvh] bg-bg text-fg">
       <AppHeader
-        subtitle={getAgentEmail() ?? 'Agent console'}
+        subtitle={agentEmail ?? 'Agent console'}
         actions={
           <>
             <ThemeToggle />
             <button
               type="button"
-              onClick={logout}
+              onClick={() => signOutAgent(navigate)}
               disabled={!!signingOut}
               className={btnClass('ghost', 'text-sm')}
             >
@@ -163,120 +175,151 @@ export function AgentDashboard() {
         }
       />
 
-      <PageMain className="space-y-10">
-        <div className="animate-fade-in">
-          <p className="section-label">Your workspace</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">Sessions</h1>
-          <p className="mt-1 text-sm text-muted">
-            Create a session, then share the invite link with your customer by SMS or email.
-          </p>
-        </div>
+      <PageMain className="max-w-6xl space-y-8">
+        <PageHero
+          eyebrow="Agent workspace"
+          title="Support sessions"
+          description="Start a video session, share the invite with your customer, and troubleshoot in real time."
+        />
 
-        {/* New session toolbar */}
-        <section className="animate-fade-in">
+        <StatGrid>
+          <StatCard label="Live now" value={live.length} accent={live.length > 0} hint="Active sessions" />
+          <StatCard label="Total sessions" value={sessions.length} />
+          <StatCard
+            label="On calls"
+            value={live.reduce((n, s) => n + Number(s.live_count ?? 0), 0)}
+            hint="Connected participants"
+          />
+          <StatCard label="Completed today" value={endedToday} />
+        </StatGrid>
+
+        <div className="rounded-xl border border-line bg-surface p-5 shadow-card sm:p-6">
+          <div className="mb-4">
+            <h2 className="text-sm font-bold text-fg">New session</h2>
+            <p className="mt-0.5 text-xs text-muted">Optional title helps you find the session later.</p>
+          </div>
           <form onSubmit={create} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <label className="label" htmlFor="session-title">New session</label>
+            <div className="min-w-0 flex-1">
+              <label className="label" htmlFor="session-title">
+                Session title
+              </label>
               <Field
                 id="session-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Optional title — e.g. Router setup help"
+                placeholder="e.g. Router setup help"
               />
             </div>
-            <Button type="submit" disabled={busy} className="sm:px-6 sm:py-2.5">
+            <Button type="submit" disabled={busy} className="w-full shrink-0 sm:w-auto sm:px-8">
               {busy ? 'Creating…' : 'Create & share'}
             </Button>
           </form>
-          {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-        </section>
+          {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+        </div>
 
-        {/* Live sessions */}
-        <section>
-          <div className="mb-4 flex items-center gap-3">
-            <h2 className="text-sm font-bold text-fg">Live now</h2>
-            {live.length > 0 && (
-              <span className="rounded-md bg-brand/10 px-2 py-0.5 text-xs font-bold text-brand">
-                {live.length}
-              </span>
-            )}
-          </div>
-
+        <SectionBlock
+          title="Live sessions"
+          count={live.length}
+          description="Sessions waiting for you or in progress."
+        >
           {live.length === 0 ? (
             <EmptyState>No active sessions. Create one above to get started.</EmptyState>
           ) : (
-            <div className="space-y-2">
+            <DataPanel>
+              <DataTableHead className={LIVE_ROW}>
+                <Col>Session</Col>
+                <Col>Participants</Col>
+                <Col>Started</Col>
+                <Col className="text-right">Actions</Col>
+              </DataTableHead>
               {live.map((s) => (
-                <Card key={s.id} className="live-rail overflow-hidden">
-                  <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status="live" />
-                        <p className="truncate font-semibold">{s.title || 'Untitled session'}</p>
-                      </div>
-                      <p className="mt-1 text-xs text-muted">
-                        {s.participant_count ?? 0} joined
-                        {Number(s.live_count ?? 0) > 0 && ` · ${s.live_count} on call`}
-                        {' · Started '}{fmtDate(s.created_at)}
-                      </p>
-                    </div>
+                <DataTableRow key={s.id} className={LIVE_ROW}>
+                  <Col>
                     <div className="flex items-center gap-2">
-                      <Link to={`/agent/call/${s.id}`} className={btnClass('primary', 'flex-1 sm:flex-none')}>
-                        Join call
+                      <StatusBadge status="live" />
+                      <span className="truncate font-semibold text-fg">{s.title || 'Untitled session'}</span>
+                    </div>
+                  </Col>
+                  <Col>
+                    <span className="text-sm text-fg">{Number(s.participant_count ?? 0)} joined</span>
+                    {Number(s.live_count ?? 0) > 0 && (
+                      <MetaLine>{Number(s.live_count)} on call now</MetaLine>
+                    )}
+                  </Col>
+                  <Col>
+                    <span className="text-sm text-muted">{fmtDate(s.created_at)}</span>
+                  </Col>
+                  <Col className="md:text-right">
+                    <PanelActions>
+                      <Link to={`/agent/call/${s.id}`} className={btnClass('primary', 'text-xs px-3 py-1.5')}>
+                        Join
                       </Link>
-                      <button onClick={() => openShare(s.id, s.title ?? undefined)} className={btnClass('secondary')}>
+                      <button
+                        type="button"
+                        onClick={() => openShare(s.id, s.title ?? undefined)}
+                        className={btnClass('secondary', 'text-xs px-3 py-1.5')}
+                      >
                         Share
                       </button>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between border-t border-line px-4 py-2.5 bg-surface-2/50">
-                    <Link
-                      to={`/agent/history/${s.id}`}
-                      className="text-xs font-medium text-muted transition hover:text-fg"
-                    >
-                      View details
-                    </Link>
-                    <button
-                      onClick={() => end(s.id)}
-                      className="text-xs font-semibold text-red-600 transition hover:text-red-500 dark:text-red-400"
-                    >
-                      End session
-                    </button>
-                  </div>
-                </Card>
+                      <Link
+                        to={`/agent/history/${s.id}`}
+                        className={btnClass('ghost', 'text-xs px-2 py-1.5')}
+                      >
+                        Details
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => end(s.id)}
+                        className="text-xs font-semibold text-red-600 hover:text-red-500 dark:text-red-400"
+                      >
+                        End
+                      </button>
+                    </PanelActions>
+                  </Col>
+                </DataTableRow>
               ))}
-            </div>
+            </DataPanel>
           )}
-        </section>
+        </SectionBlock>
 
-        {/* History */}
-        <section>
-          <h2 className="mb-4 text-sm font-bold text-fg">History</h2>
+        <SectionBlock title="Session history" count={recent.length} description="Past support calls and recordings.">
           {recent.length === 0 ? (
             <EmptyState>No past sessions yet.</EmptyState>
           ) : (
-            <Card className="divide-y divide-line overflow-hidden">
+            <DataPanel>
+              <DataTableHead className={HISTORY_ROW}>
+                <Col>Session</Col>
+                <Col>Started</Col>
+                <Col>Participants</Col>
+                <Col>Duration</Col>
+                <Col className="text-right">Status</Col>
+              </DataTableHead>
               {recent.map((s) => (
-                <Link key={s.id} to={`/agent/history/${s.id}`} className="data-row group">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium group-hover:text-brand transition-colors">
-                      {s.title || 'Untitled session'}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {fmtDate(s.created_at)} · {s.participant_count ?? 0} joined · {durationLabel(s)}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
+                <Link
+                  key={s.id}
+                  to={`/agent/history/${s.id}`}
+                  className={`${HISTORY_ROW} grid gap-3 border-b border-line px-4 py-3.5 last:border-b-0 transition-colors hover:bg-surface-2/80 md:items-center md:gap-4`}
+                >
+                  <Col>
+                    <span className="font-medium text-fg">{s.title || 'Untitled session'}</span>
+                  </Col>
+                  <Col>
+                    <span className="text-sm text-muted">{fmtDate(s.created_at)}</span>
+                  </Col>
+                  <Col>
+                    <span className="text-sm text-fg">{Number(s.participant_count ?? 0)}</span>
+                  </Col>
+                  <Col>
+                    <span className="text-sm text-muted">{durationLabel(s)}</span>
+                  </Col>
+                  <Col className="flex justify-end">
                     <StatusBadge status={s.status} />
-                    <svg viewBox="0 0 24 24" className="h-4 w-4 text-subtle" fill="none" aria-hidden>
-                      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </div>
+                  </Col>
                 </Link>
               ))}
-            </Card>
+            </DataPanel>
           )}
-        </section>
+        </SectionBlock>
       </PageMain>
 
       <ShareDialog

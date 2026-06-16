@@ -127,7 +127,7 @@ export function AppHeader({
 
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur-md">
-      <div className="mx-auto max-w-5xl px-5">
+      <div className="mx-auto max-w-6xl px-5">
         <div className="flex items-center justify-between gap-4 py-3">
           <div className="flex items-center gap-4 min-w-0">
             <Logo size={30} withWordmark />
@@ -164,7 +164,7 @@ export function AppHeader({
 }
 
 export function PageMain({ className = '', children }: { className?: string; children: React.ReactNode }) {
-  return <main className={`mx-auto max-w-5xl px-5 py-8 ${className}`}>{children}</main>;
+  return <main className={`mx-auto max-w-6xl px-5 py-8 ${className}`}>{children}</main>;
 }
 
 // ── Status badge ─────────────────────────────────────────────────────────────
