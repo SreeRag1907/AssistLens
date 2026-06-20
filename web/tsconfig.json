@@ -14,7 +14,9 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    // Gives TypeScript knowledge of Vitest globals (describe, it, expect, vi…)
+    "types": ["vitest/globals"]
   },
   "include": ["src"]
 }

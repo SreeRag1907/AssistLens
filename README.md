@@ -16,6 +16,7 @@ Built for the AtomQuest Hackathon *Real-Time Video Support Platform* problem sta
 - [Repository layout](#repository-layout)
 - [Roles & access control](#roles--access-control)
 - [Local development](#local-development)
+- [Testing](#testing)
 - [Environment variables](#environment-variables)
 - [Deployment](#deployment)
 - [API overview](#api-overview)
@@ -242,6 +243,72 @@ Runs at **http://localhost:5173** and proxies `/api` → `:8080`.
 
 ---
 
+## Testing
+
+The frontend uses **[Vitest](https://vitest.dev/)** (Jest-compatible) + **[React Testing Library](https://testing-library.com/react)** for unit and integration tests.
+
+### Running tests
+
+```bash
+cd web
+
+npm test                # watch mode — re-runs on every file save
+npm run test:run        # single run (CI / pre-commit)
+npm run test:coverage   # single run + HTML coverage report in web/coverage/
+```
+
+### Test layout
+
+```
+web/src/
+├── test/
+│   ├── setup.ts                    # global setup: jest-dom matchers + browser API stubs
+│   └── renderWithProviders.tsx     # reusable render helper (MemoryRouter + ThemeProvider)
+└── __tests__/
+    ├── components/
+    │   └── ui.test.tsx             # Button, Field, Card, StatusBadge, Spinner, Logo, ThemeToggle
+    ├── pages/
+    │   └── Login.test.tsx          # form interaction, API mocking, navigation assertions
+    └── lib/
+        └── theme.test.tsx          # useTheme hook, ThemeProvider context & side effects
+```
+
+### What is tested
+
+| File | Tests | Techniques |
+| --- | --- | --- |
+| `components/ui.tsx` | 42 | `getByRole`, `toHaveClass`, `toBeDisabled`, `userEvent.click`, `vi.fn()`, `it.each`, snapshots |
+| `pages/Login.tsx` | 14 | `vi.mock()` for API module, `mockResolvedValueOnce`, `mockRejectedValueOnce`, `waitFor`, `findBy*` |
+| `lib/theme.tsx` | 10 | `renderHook`, `act()`, `localStorage` assertions, `document.documentElement` class checks |
+
+### Key concepts
+
+| Concept | Where to see it |
+| --- | --- |
+| `describe` / `it` blocks | Every test file |
+| `getByRole` (semantic queries) | `ui.test.tsx` — Button, Spinner |
+| `queryByText` (assert absence) | `ui.test.tsx` — Logo, StatusBadge |
+| `findBy*` (async queries) | `Login.test.tsx` — error messages |
+| `vi.mock()` — module mocking | `Login.test.tsx` — replaces `lib/api` |
+| `mockResolvedValueOnce` | `Login.test.tsx` — success path |
+| `mockRejectedValueOnce` | `Login.test.tsx` — failure path |
+| `waitFor()` | `Login.test.tsx` — navigation assertions |
+| `renderHook` + `act()` | `theme.test.tsx` |
+| `beforeEach` / `afterEach` | `Login.test.tsx`, `theme.test.tsx` |
+| Snapshot testing | `ui.test.tsx` — Button, StatusBadge, Spinner |
+| `window.matchMedia` polyfill | `test/setup.ts` — jsdom browser API stub |
+
+### Tech choices
+
+| | |
+| --- | --- |
+| **Vitest over Jest** | Reads `vite.config.ts` directly — no Babel, no extra transform config, faster cold start |
+| **jsdom environment** | Simulates a browser DOM inside Node.js for component rendering |
+| **React Testing Library** | Queries by role/label/text — the same way real users and screen readers navigate the UI |
+| **`@testing-library/user-event`** | Fires the full event sequence (focus → keydown → input → keyup) instead of a single synthetic event |
+
+---
+
 ## Environment variables
 
 All API configuration lives in `api/.env`. See `api/.env.example` for the full list.
@@ -318,6 +385,9 @@ cd api && npm run typecheck  # type check only
 cd web && npm run dev        # Vite dev server
 cd web && npm run build      # production build
 cd web && npm run typecheck  # type check only
+cd web && npm test           # run tests in watch mode
+cd web && npm run test:run   # run tests once (CI)
+cd web && npm run test:coverage  # tests + coverage report
 
 # Infrastructure
 docker compose up            # full local media + recording stack
